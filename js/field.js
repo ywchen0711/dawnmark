@@ -63,7 +63,7 @@ const inMap = (x, y) => x >= 0 && y >= 0 && x < F.map.w && y < F.map.h;
 export const kindAt = (x, y) => (inMap(x, y) ? F.kinds[F.grid[y * F.map.w + x]] : 'void');
 export function entAt(x, y, pred = () => true) { return F.ents.find((e) => !e.gone && e.x === x && e.y === y && pred(e)); }
 const entsAt = (x, y) => F.ents.filter((e) => !e.gone && e.x === x && e.y === y);
-function entSolid(e) { return ['npc', 'chest', 'sign', 'solid', 'boss', 'ride'].includes(e.type) && !e.walkable; }
+function entSolid(e) { return ['npc', 'chest', 'sign', 'solid', 'boss', 'ride', 'fish'].includes(e.type) && !e.walkable; }
 function blocked(x, y) {
   if (!inMap(x, y)) return true;
   if (F.block[y * F.map.w + x]) return true;
@@ -203,7 +203,7 @@ function interact() {
   // glints can be picked up from where you stand too
   const g = entAt(p.x, p.y, (e) => e.type === 'glint');
   if (g) { F.runScript('glint', g); return; }
-  const e = F.ents.find((o) => !o.gone && o.x === tx && o.y === ty && (o.talk || ['chest', 'save', 'sign', 'glint'].includes(o.type)));
+  const e = F.ents.find((o) => !o.gone && o.x === tx && o.y === ty && (o.talk || ['chest', 'save', 'sign', 'glint', 'fish'].includes(o.type)));
   if (!e) return;
   if (e.type === 'npc' && !e.fixed) e.dir = { u: 'd', d: 'u', l: 'r', r: 'l' }[p.dir];
   F.runScript(e.talk || e.type, e);
@@ -313,6 +313,15 @@ function drawEnt(e, cx, cy) {
       else { const d = drakeArt(), sc = 0.45; ctx.drawImage(shadow, x + 1, y + 12); ctx.drawImage(d, x + 8 - (d.width * sc) / 2, y + 14 - d.height * sc, d.width * sc, d.height * sc); }
       break;
     case 'sprite': if (e.draw) e.draw(ctx, x, y, F.frame); break;
+    case 'fish': {
+      // rings spreading on the water where fish gather
+      const k = (F.frame % 60) / 60;
+      ctx.strokeStyle = e.spot === 'ice' ? 'rgba(40,60,90,0.9)' : 'rgba(255,255,255,0.75)';
+      if (e.spot === 'ice') { ctx.fillStyle = '#284060'; ctx.beginPath(); ctx.ellipse(x + 8, y + 9, 6, 4, 0, 0, 7); ctx.fill(); }
+      ctx.beginPath(); ctx.ellipse(x + 8, y + 9, 2 + k * 6, 1 + k * 3, 0, 0, 7); ctx.stroke();
+      if (k > 0.5) { ctx.beginPath(); ctx.ellipse(x + 8, y + 9, 2 + (k - 0.5) * 6, 1 + (k - 0.5) * 3, 0, 0, 7); ctx.stroke(); }
+      break;
+    }
     default: break;
   }
 }

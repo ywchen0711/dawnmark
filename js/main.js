@@ -13,6 +13,10 @@ import { F, setMaps, loadMap, updateField, drawField, walkEnt, walkPlayer, findE
 import { startBattle, updateBattle, drawBattle, _B, settings as bset, battleState } from './battle.js';
 import { fieldMenu, shop, loadSettings, setMenuHooks } from './menu.js';
 import { SCRIPTS } from './story.js';
+import './maps2.js';
+import './story2.js';
+import './episodes.js';
+import { showBook, showJournal, useTreasureMap } from './games.js';
 import { sprite, face, monArt } from './sprites.js';
 import { L, LANG, isEn, setLang, onLang } from './i18n.js';
 
@@ -144,13 +148,13 @@ F.onMenu = async () => {
   if (z) await zoomTo(z);
   F.busy = false;
 };
-const ZONE_LV = { crag: 3, road: 4, meadow: 6, sewer: 7, river: 10, temple: 12, coast: 14, sea: 15, volcano: 16, desert: 19, ruins: 20, snow: 23, frost: 24, tower: 27, dark: 30, dark2: 32, citadel: 36 };
+const ZONE_LV = { crag: 3, road: 4, meadow: 6, sewer: 7, river: 10, temple: 12, grotto: 13, coast: 14, sea: 15, luck: 16, volcano: 16, desert: 19, ruins: 20, mines: 21, snow: 23, frost: 24, east: 25, choir: 25, monastery: 25, galespire: 26, sea2: 26, tower: 27, jungle: 28, fen: 30, dark: 30, dark2: 32, keep: 32, garden: 33, archive: 34, dark3: 34, citadel: 36, starwell2: 44, starwell: 46 };
 F.onEncounter = async (zone) => {
   const lv = S.members.reduce((a, m) => a + m.lv, 0) / Math.max(1, S.members.length);
   if (S.repel > 0 && lv >= (ZONE_LV[zone] || 0)) return;
   F.busy = true;
   const troop = pickTroop(zone);
-  await runBattle(troop, { zone, dark: S.flags.fallen && !['dark', 'dark2', 'citadel'].includes(zone) });
+  await runBattle(troop, { zone, dark: S.flags.fallen && !['dark', 'dark2', 'dark3', 'citadel', 'archive', 'keep', 'garden', 'starwell', 'starwell2'].includes(zone) });
   F.busy = false;
 };
 function pickTroop(zone) {
@@ -182,6 +186,7 @@ async function runBattle(troop, opts = {}) {
   scene = 'battle';
   T.dark = 0;
   const zone = opts.zone || (F.map.zone && F.map.zone(F.p.x, F.p.y, F.mode)) || 'meadow';
+  if (!opts.music && !boss && !opts.boss && /^starwell/.test(zone)) opts = { ...opts, music: 'tides' };
   const r = await startBattle(troop, { zone, boss: boss || opts.boss, ...opts, bg: opts.bg || BG[opts.bgZone || zone] });
   if (r === 'lose' && !opts.canLose) { await carriedBack(); return 'lose'; }
   if (r === 'lose') fullHeal();
@@ -267,7 +272,7 @@ async function zoomMenu() {
   const r = await menu(list.map((k) => L(ZOOM[k].n[0], ZOOM[k].n[1])), { x: 80, y: 40, w: 150, title: L('要飛去哪裡？', 'Fly where?') });
   return r < 0 ? null : list[r];
 }
-setMenuHooks({ zoom: zoomMenu, whistle });
+setMenuHooks({ zoom: zoomMenu, whistle, book: showBook, journal: showJournal, tmap: (id) => useTreasureMap(E, id, { world: !!F.def.world, x: F.p.x, y: F.p.y }) });
 async function zoomTo(k) {
   F.busy = true;
   sfx('zoom');
@@ -444,7 +449,7 @@ async function continueGame() {
 async function ending() {
   await SCRIPTS.ending_scenes(E);
   await trans('out', 60);
-  scene = 'credits'; credits.t = 0;
+  scene = 'credits'; credits.t = 0; credits.leaving = false;
   playMusic('hymn', { restart: true });
   T.dark = 0;
   S.flags.cleared = true;
@@ -453,15 +458,15 @@ async function ending() {
 const CREDITS = () => (isEn() ? [
   ['THE DAWNMARK', 'big'], ['晨星之印'], [''], [''],
   ['- CAST -', 'y'], ['Rowan, the Dawnbearer'], ['Pell, thief of Solhaven'], ['Mirela, priestess of Riverlight'], ['Odo, the wandering monk'], ['Sera, the Weaver\'s apprentice'], ['Brannoc, knight of Solhaven'], [''],
-  ['Wren   Grandpa Tobin   King Aurel'], ['High Seer Morrow'], ['and the Unweaver'], [''], [''],
-  ['- ART -', 'y'], ['Characters and portraits:'], ['Charles Gabriel (repack by Jorhlok)'], ['Monsters: Stephen "Redshrike" Challener,'], ['JosephSeraph, Blarumyrran, Balmer'], ['Tiles: ArMM1998'], ['Battle backgrounds: troutsneeze'], [''],
+  ['Wren   Grandpa Tobin   King Aurel'], ['Rena   Lumi   Corin   Varro'], ['Ysolde   Cordelia   Master Ennick'], ['Kestrel   the Queen of Sandmere'], ['High Seer Morrow (Mattias)'], ['and the Unweaver'], [''], [''],
+  ['- ART -', 'y'], ['Characters and portraits:'], ['Charles Gabriel (repack by Jorhlok)'], ['Monsters: Stephen "Redshrike" Challener,'], ['JosephSeraph, Blarumyrran, Balmer,'], ['Charles Gabriel (Antifarea),'], ['troutsneeze (Monster RPG 2)'], ['Tiles: ArMM1998'], ['Battle backgrounds: troutsneeze'], [''],
   ['- MUSIC -', 'y'], ['Juhani Junkala (SubspaceAudio)'], ['Hydrogene'], [''], ['Font: Cubic 11'], ['Hosted by OpenGameArt.org'], [''], [''],
   ['THANK YOU FOR PLAYING!', 'y'], [''], [''], ['THE END', 'big'],
 ] : [
   ['晨星之印', 'big'], ['THE DAWNMARK'], [''], [''],
   ['— 登場人物 —', 'y'], ['洛恩　晨星之子'], ['佩兒　索爾海文的盜賊'], ['米蕾拉　河光神殿的神官'], ['歐多　流浪的武僧'], ['瑟菈　織母的弟子'], ['布藍諾　索爾海文的騎士'], [''],
-  ['小雀　托賓爺爺　歐瑞爾王'], ['大祭司莫洛'], ['以及　解織者'], [''], [''],
-  ['— 美術 —', 'y'], ['人物與肖像：Charles Gabriel'], ['（Jorhlok 整理）'], ['怪物：Stephen "Redshrike" Challener、'], ['JosephSeraph、Blarumyrran、Balmer'], ['地圖：ArMM1998'], ['戰鬥背景：troutsneeze'], [''],
+  ['小雀　托賓爺爺　歐瑞爾王'], ['蕾娜　露米　柯林　瓦羅'], ['伊索德　柯黛莉亞修女　恩尼克師父'], ['凱斯卓　沙梅爾女王'], ['大祭司莫洛（馬提亞斯）'], ['以及　解織者'], [''], [''],
+  ['— 美術 —', 'y'], ['人物與肖像：Charles Gabriel'], ['（Jorhlok 整理）'], ['怪物：Stephen "Redshrike" Challener、'], ['JosephSeraph、Blarumyrran、Balmer、'], ['Charles Gabriel (Antifarea)、'], ['troutsneeze (Monster RPG 2)'], ['地圖：ArMM1998'], ['戰鬥背景：troutsneeze'], [''],
   ['— 音樂 —', 'y'], ['Juhani Junkala (SubspaceAudio)'], ['Hydrogene'], [''], ['字型：俐方體11號 (Cubic 11)'], ['素材來自 OpenGameArt.org'], [''], [''],
   ['感謝你的遊玩！', 'y'], [''], [''], ['—— 完 ——', 'big'],
 ]);
@@ -469,8 +474,23 @@ const credits = { t: 0 };
 function updateCredits() {
   credits.t++;
   const end = CREDITS().length * 18 * 2 + H * 2;
-  if (credits.t > end && input.pressed('a') && !T.job) {
-    (async () => { await trans('out', 40); scene = 'title'; title.ready = false; playMusic('title'); await trans('in', 40); })();
+  if (credits.t > end && input.pressed('a') && !T.job && !credits.leaving) {
+    credits.leaving = true;
+    (async () => {
+      await trans('out', 40);
+      if (S.flags.postgame) { scene = 'title'; title.ready = false; playMusic('title'); await trans('in', 40); return; }
+      // a few months later, back in Brightfall: the world after the end
+      scene = 'field'; F.mode = 'walk';
+      loadMap('brightfall', 15, 9, 'u'); F.banner = 0;
+      S.church = { map: 'bf_chapel', x: 7, y: 6 };
+      playMusic('village');
+      await trans('in', 40);
+      await F.runScript('postgame_start');
+      F.busy = true;
+      const r = await ask(null, L('要記錄冒險嗎？（之後可以從「繼續冒險」接著玩）', 'Save your adventure? (You can carry on later from "Continue".)'), [L('記錄', 'Save'), L('不用', 'No')]);
+      if (r === 0) { const ok = save(0); sfx(ok ? 'save' : 'buzz'); }
+      F.busy = false;
+    })();
   }
 }
 function drawCredits() {

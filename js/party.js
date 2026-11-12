@@ -7,6 +7,7 @@ export const S = {
   visited: [], church: null, repel: 0, ride: null, // ride: { kind: 'boat' | 'drake', map, x, y } where it is parked
 };
 export const MAXPARTY = 4;
+export const MAXLV = 70;
 
 export function makeHero(id, lv = 1) {
   // the first skill of the first path comes free
@@ -60,7 +61,8 @@ export function spellsOf(h) {
   return list;
 }
 export const skillsOf = (h) => boardEffects(h).skills;
-export const passive = (h, p) => boardEffects(h).pass.has(p);
+// a passive comes from the skill board or from something worn
+export const passive = (h, p) => boardEffects(h).pass.has(p) || ['weapon', 'armor', 'shield', 'head', 'acc'].some((k) => EQUIP[h.equip[k]] && EQUIP[h.equip[k]].pass === p);
 export const mpCost = (h, id) => { const c = SKILLS[id] ? SKILLS[id].mp : 0; return SKILLS[id] && SKILLS[id].spell && passive(h, 'mpcut') ? Math.ceil(c * 0.75) : c; };
 export const alive = () => S.members.filter((m) => m.hp > 0);
 export const member = (id) => S.members.find((m) => m.id === id) || S.reserve.find((m) => m.id === id);
@@ -87,7 +89,7 @@ export function fillParty() { while (S.members.length < MAXPARTY && S.reserve.le
 export function gainExp(h, n) {
   const out = [];
   h.exp += n;
-  while (h.exp >= expFor(h.lv + 1) && h.lv < 60) {
+  while (h.exp >= expFor(h.lv + 1) && h.lv < MAXLV) {
     const before = stats(h), hadS = spellsOf(h);
     h.lv++;
     const after = stats(h), gain = spFor(h.lv);
@@ -117,10 +119,10 @@ export function load(slot = 0) {
   try {
     const d = JSON.parse(localStorage.getItem(KEY + slot));
     if (!d) return false;
-    Object.assign(S, { members: [], reserve: [], inv: {}, flags: {}, visited: [], church: null, repel: 0, ride: null, stash: {} }, d);
+    Object.assign(S, { members: [], reserve: [], inv: {}, flags: {}, visited: [], church: null, repel: 0, ride: null, stash: {}, book: {}, coins: 0, fish: {}, quests: {} }, d);
     return true;
   } catch (e) { return false; }
 }
 export function reset() {
-  Object.assign(S, { members: [], reserve: [], inv: { herb: 3 }, gold: 50, flags: {}, map: 'brightfall', x: 0, y: 0, dir: 'd', time: 0, steps: 0, visited: [], church: null, repel: 0, ride: null, stash: {} });
+  Object.assign(S, { members: [], reserve: [], inv: { herb: 3 }, gold: 50, flags: {}, map: 'brightfall', x: 0, y: 0, dir: 'd', time: 0, steps: 0, visited: [], church: null, repel: 0, ride: null, stash: {}, book: {}, coins: 0, fish: {}, quests: {} });
 }

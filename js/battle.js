@@ -43,7 +43,7 @@ export async function startBattle(troop, opts = {}) {
   for (const f of foes) counts[f.id] = (counts[f.id] || 0) + 1;
   const seen = {};
   for (const f of foes) if (counts[f.id] > 1) { seen[f.id] = (seen[f.id] || 0) + 1; f.tag = 'ABCDEFG'[seen[f.id] - 1]; }
-  for (const h of S.members) h.b = { buffs: {}, pepG: h.b && h.b.keepPep ? h.b.pepG : Math.floor(Math.random() * 30), pepT: 0 };
+  for (const h of S.members) { h.b = { buffs: {}, pepG: h.b && h.b.keepPep ? h.b.pepG : Math.floor(Math.random() * 30) + (passive(h, 'pepstart') ? 55 : 0), pepT: 0 }; if (passive(h, 'swift')) h.b.buffs.agiup = 3; }
   B = {
     foes, opts, bg: bgk, log: [], waits: [], fx: [], pops: [], t: 0, shake: 0, flashWin: {}, active: null, round: 0, result: null, gold: 0, exp: 0, drops: [],
     targetPick: null, intro: 20, firstTurn: true,
@@ -57,7 +57,8 @@ function makeFoe(id, opts) {
   if (!def) throw new Error('no monster ' + id);
   const lk = def.look || (opts.dark && !def.boss ? { hue: 0, sat: 0.6, lum: 0.78 } : null);
   const k = opts.dark && !def.boss ? 1.25 : 1;
-  const f = { id, def, hero: false, hp: Math.round(def.hp * k), maxhp: Math.round(def.hp * k), mp: def.mp || 0, atk: Math.round(def.atk * k), defn: Math.round(def.def * k), agi: def.agi, st: {}, buffs: {}, alive: true, blink: 0, fade: 0, look: lk };
+  const f = { id, def, hero: false, hp: Math.round(def.hp * k), maxhp: Math.round(def.hp * k), mp: def.mp || 0, atk: Math.round(def.atk * k), defn: Math.round(def.def * k), agi: def.agi, st: {}, buffs: {}, alive: true, blink: 0, fade: 0, look: lk,
+    acts: def.acts, twice: def.twice || 0, weak: def.weak, resist: def.resist, phase: 0, charge: def.charge || null };
   f.art = def.art.startsWith('person:') ? personArt(def.art.slice(7)) : monArt(def.art, lk);
   if (!f.art) f.art = monArt('slime');
   f.w = f.art.width; f.h = f.art.height;
@@ -125,13 +126,13 @@ function groupNames() {
 function turnOrder(side) {
   const list = [];
   if (side !== 'foes') for (const u of heroesIn()) if (u.h.hp > 0) list.push({ ...u, speed: agiOf(u) * rnd(0.75, 1.25) });
-  if (side !== 'heroes') for (const f of liveFoes()) { list.push({ ...f, ref: f, speed: f.agi * rnd(0.75, 1.25) }); if (f.def.twice && chance(f.def.twice)) list.push({ ref: f, speed: f.agi * rnd(0.3, 0.7) }); }
+  if (side !== 'heroes') for (const f of liveFoes()) { list.push({ ...f, ref: f, speed: agiOf(f) * rnd(0.75, 1.25) }); if (f.twice && chance(f.twice)) list.push({ ref: f, speed: agiOf(f) * rnd(0.3, 0.7) }); }
   list.sort((a, b) => b.speed - a.speed);
   return list.map((u) => (u.hero ? u : u.ref));
 }
 function agiOf(u) {
-  if (u.hero) { const s = stats(u.h); return s.agi * (u.h.b.buffs.agiup ? 1.5 : 1) * (u.h.b.pepT ? 1.2 : 1); }
-  return u.agi * (u.buffs.agiup ? 1.5 : 1);
+  if (u.hero) { const s = stats(u.h); return s.agi * (u.h.b.buffs.agiup ? 1.5 : 1) * (u.h.b.buffs.agidown ? 0.6 : 1) * (u.h.b.pepT ? 1.2 : 1); }
+  return u.agi * (u.buffs.agiup ? 1.5 : 1) * (u.buffs.agidown ? 0.6 : 1);
 }
 function checkEnd() {
   if (!liveFoes().length) return 'win';
@@ -228,12 +229,12 @@ async function chooseAction(h) {
       return { type: 'art', id: arts[k], target: t };
     }
     if (c.id === 'item') {
-      const ids = Object.keys(S.inv).filter((id) => ITEMS[id].use && !['zoom', 'repel', 'seed'].includes(ITEMS[id].use) && !ITEMS[id].key);
+      const ids = Object.keys(S.inv).filter((id) => ITEMS[id].use && !['zoom', 'repel', 'seed', 'book', 'tmap', 'whistle'].includes(ITEMS[id].use) && !ITEMS[id].key);
       if (!ids.length) { sfx('buzz'); continue; }
       const k = await menu(ids.map((id) => ({ label: nm(ITEMS[id]), right: S.inv[id] })), { x: 2, y: 50, w: 252, cols: 2, maxRows: 5, title: L('道具', 'Items'), drawExtra: (i) => { windowBox(2, 182, 252, 40); text(ds(ITEMS[ids[i]]), 10, 194); } });
       if (k < 0) continue;
       const it = ITEMS[ids[k]];
-      const t = await pickTarget(it.use === 'dmg' ? 'foes' : 'ally', it.use === 'revive');
+      const t = await pickTarget(['dmg', 'statusitem'].includes(it.use) ? 'foes' : ['healall', 'fullall'].includes(it.use) ? 'allies' : it.use === 'smoke' ? 'self' : 'ally', it.use === 'revive');
       if (t === null) continue;
       return { type: 'item', id: ids[k], target: t };
     }
@@ -324,6 +325,10 @@ function aiAction(h, mode) {
     const a = arts.find((id) => ARTS[id].kind === 'heal' && hurt >= 2) || arts.find((id) => ARTS[id].kind !== 'heal' && ARTS[id].kind !== 'buff2' && ARTS[id].kind !== 'feast');
     if (a) return { type: 'art', id: a, target: ARTS[a].tgt === 'foe' ? strongest(foes) : ARTS[a].tgt };
   }
+  // lift a death knell before it tolls
+  const doomed = friends.find((m) => m.st.doom);
+  if (doomed && useMp && known.includes('cleanse')) return { type: 'skill', id: 'cleanse', target: { hero: true, h: doomed } };
+  if (doomed && _B.auto && S.inv.remedy) return { type: 'item', id: 'remedy', target: { hero: true, h: doomed } };
   // revive and heal
   if (useMp) {
     const down = S.members.find((m) => m.hp <= 0);
@@ -352,7 +357,7 @@ function aiAction(h, mode) {
   const target = mode === 'mercy' ? strongest(foes) : weakest(foes);
   if (useMp && known.length) {
     const many = foes.length >= 3, k = mode === 'mercy' ? 0.85 : 0.5;
-    const off = known.filter((id) => ['dmg', 'phys'].includes(SKILLS[id].kind));
+    const off = known.filter((id) => ['dmg', 'phys'].includes(SKILLS[id].kind) && !(target.buffs && target.buffs.reflect && SKILLS[id].spell));
     const multi = off.filter((id) => ['foes', 'group', 'rand'].includes(SKILLS[id].tgt));
     const single = off.filter((id) => SKILLS[id].tgt === 'foe');
     const best = (list) => list.sort((a, b) => estimate(h, SKILLS[b], target) - estimate(h, SKILLS[a], target))[0];
@@ -365,7 +370,7 @@ const strongest = (foes) => [...foes].sort((a, b) => b.hp - a.hp)[0];
 const weakest = (foes) => [...foes].sort((a, b) => a.hp - b.hp)[0];
 function estimate(h, sk, f) {
   const s = stats(h);
-  const elk = (el) => (el && f.def.weak && f.def.weak.includes(el) ? 1.5 : el && f.def.resist && f.def.resist.includes(el) ? 0.5 : 1);
+  const elk = (el) => elMul(f, el);
   if (sk.kind === 'phys') return Math.max(1, s.atk / 2 - f.defn / 4) * sk.power * (sk.hits || 1) * elk(sk.el);
   if (sk.kind === 'dmg') return sk.power * (1 + s.mag / 200) * elk(sk.el);
   return 0;
@@ -409,6 +414,17 @@ async function doHeroAct(h, act) {
     addItem(act.id, -1);
     await line(L(`${heroName(h)}使用了「${nm(it)}」！`, `${heroName(h)} uses ${nm(it)}!`), 0.6);
     if (it.use === 'dmg') { sfx('fire'); await fxOn(liveFoes(), 'boom'); for (const f of liveFoes()) await spellHit(h, f, { power: it.power, el: it.el, flat: true }, true); return; }
+    if (it.use === 'statusitem') { sfx('sleep'); await fxOn(liveFoes(), 'dark'); for (const f of liveFoes()) { if (!chance(0.6 * (f.def.boss ? 0.2 : 1))) { await line(L(`對${foeName(f)}沒有效果！`, `${foeName(f)} is unaffected!`), 0.6); continue; } f.st[it.st] = 3; await line(statusText(foeName(f), it.st), 0.6); } return; }
+    if (it.use === 'smoke') {
+      if (B.opts.boss || B.opts.noFlee) { await line(L('可是逃不掉！', "But there's no escape!")); return; }
+      sfx('run'); B.fled = true; await line(L('趁著煙霧逃走了！', 'You slip away in the smoke!')); return;
+    }
+    if (it.use === 'healall' || it.use === 'fullall') {
+      sfx('heal'); await fxFriends(liveHeroes(), 'heal');
+      for (const m of liveHeroes()) { const ms = stats(m), n = it.use === 'fullall' ? ms.maxhp - m.hp : Math.min(ms.maxhp - m.hp, Math.round(it.power * rnd(0.9, 1.1))); m.hp += n; if (it.use === 'fullall') m.mp = ms.maxmp; popOn({ hero: true, h: m }, n, '#68f8a0'); }
+      await line(it.use === 'fullall' ? L('全體同伴的體力與魔力完全回復了！', "Everyone's HP and MP are fully restored!") : L('全體同伴的體力回復了！', "Everyone's HP is restored!"));
+      return;
+    }
     const m = act.target.h;
     await useOnFriend(h, m, it);
     return;
@@ -521,9 +537,44 @@ async function resolveSkill(h, sk, target) {
         if (sk.st === 'focus') { m.b.focus = true; await line(L(`${heroName(m)}凝聚了氣力！`, `${heroName(m)} is focusing!`)); continue; }
         if (sk.st === 'cover') { m.b.cover = true; await line(L(`${heroName(m)}擋在同伴的前面！`, `${heroName(m)} stands in front of the others!`)); continue; }
         if (sk.st === 'counter') { m.b.counter = true; await line(L(`${heroName(m)}擺出了反擊的架勢！`, `${heroName(m)} takes a counter stance!`)); continue; }
-        m.b.buffs[sk.st] = 4;
+        if (sk.st === 'guardian') { m.b.cover = true; m.b.guardAll = true; m.b.buffs.defup = 2; await line(L(`${heroName(m)}舉起盾牌，擋在全體同伴的前面！`, `${heroName(m)} raises the shield before everyone!`)); continue; }
+        m.b.buffs[sk.st] = sk.st === 'reraise' ? 99 : 4;
         await line(buffText(heroName(m), sk.st), tl.length > 2 ? 0.6 : 1);
       }
+      break;
+    }
+    case 'healdmg': {
+      // damage every foe, then heal every friend
+      sfx('holy'); await fxOn(foes, sk.fx || 'holy');
+      for (const f of foes) await spellHit(h, f, sk, true);
+      sfx('heal'); await fxFriends(liveHeroes(), 'heal');
+      for (const m of liveHeroes()) { const ms = stats(m), n = Math.min(ms.maxhp - m.hp, Math.round(sk.heal * (1 + s.heal / 150))); m.hp += n; popOn({ hero: true, h: m }, n, '#68f8a0'); }
+      await line(L('光芒治癒了全體同伴！', 'The light heals every friend!'));
+      break;
+    }
+    case 'dmgmp': {
+      sfx('ice'); await fxOn(foes, sk.fx || 'ice');
+      for (const f of foes) await spellHit(h, f, sk, true);
+      for (const m of liveHeroes()) { const ms = stats(m); m.mp = Math.min(ms.maxmp, m.mp + Math.round(ms.maxmp * 0.2)); }
+      sfx('heal'); await line(L('全體同伴的魔力回復了！', "Every friend's MP is restored!"));
+      break;
+    }
+    case 'buffall': {
+      sfx('buff'); await fxFriends(liveHeroes(), 'buff');
+      for (const m of liveHeroes()) { m.b.buffs.atkup = 4; m.b.buffs.defup = 4; }
+      await line(L('全體同伴的攻擊與防禦大幅提高了！', "Every friend's attack and defence rise!"));
+      break;
+    }
+    case 'regenall': {
+      sfx('heal'); await fxFriends(liveHeroes(), 'heal');
+      for (const m of liveHeroes()) { const ms = stats(m), n = Math.min(ms.maxhp - m.hp, Math.round(ms.maxhp * sk.power)); m.hp += n; m.b.buffs.regen = 4; popOn({ hero: true, h: m }, n, '#68f8a0'); }
+      await line(L('平靜的氣息包圍了全體同伴。', 'A calm breath surrounds every friend.'));
+      break;
+    }
+    case 'goldtoss': {
+      if (S.gold < 200) { await line(L('……可是金幣不夠！', '...But there is not enough gold!')); break; }
+      S.gold -= 200; sfx('chest'); await fxOn(foes, 'star');
+      for (const f of foes) await spellHit(h, f, { power: sk.power, flat: true }, true);
       break;
     }
     case 'mpself': {
@@ -540,7 +591,7 @@ async function resolveSkill(h, sk, target) {
         if (!f.alive) continue;
         const resist = f.def.boss ? 0.25 : 1;
         if (!chance((sk.hit || 0.7) * resist)) { await line(L(`對${foeName(f)}沒有效果！`, `${foeName(f)} is unaffected!`), 0.7); continue; }
-        if (sk.kind === 'debuff') { f.buffs[sk.st] = 4; await line(L(`${foeName(f)}的防禦降低了！`, `${foeName(f)}'s defence falls!`), 0.7); }
+        if (sk.kind === 'debuff') { f.buffs[sk.st] = 4; await line(debuffText(foeName(f), sk.st), 0.7); }
         else { f.st[sk.st] = 3; await line(statusText(foeName(f), sk.st), 0.7); }
       }
       break;
@@ -550,8 +601,8 @@ async function resolveSkill(h, sk, target) {
       if (!f) break;
       await physHit(h, f, sk, true);
       if (f.stolen) { await line(L(`${foeName(f)}身上已經沒有東西了。`, `${foeName(f)} has nothing left.`)); break; }
-      if (chance(0.3 + (passive(h, 'steal') ? 0.25 : 0))) {
-        const it = (f.def.drop && f.def.drop[0]) || (chance(0.15) ? 'gem' : 'herb');
+      if (chance(0.3 + (passive(h, 'steal') ? 0.25 : 0) + (sk.bonus || 0))) {
+        const it = f.def.steal || (f.def.drop && f.def.drop[0]) || (f.def.drops && f.def.drops[0][0]) || (chance(0.15) ? 'gem' : 'herb');
         f.stolen = true; addItem(it); sfx('chest');
         await line(L(`${heroName(h)}偷到了「${nm(ITEMS[it])}」！`, `${heroName(h)} steals ${nm(ITEMS[it])}!`));
       } else await line(L('可是什麼也沒偷到。', "But couldn't steal anything."));
@@ -560,8 +611,12 @@ async function resolveSkill(h, sk, target) {
     default: break;
   }
 }
+function debuffText(n, st) {
+  return { defdown: L(`${n}的防禦降低了！`, `${n}'s defence falls!`), atkdown: L(`${n}的攻擊力降低了！`, `${n}'s attack falls!`), agidown: L(`${n}的動作變慢了！`, `${n} slows down!`) }[st] || n;
+}
 function buffText(n, st) {
   return {
+    mwall: L(`${n}受到了魔障的守護！`, `${n} is shielded by a barrier!`), regen: L(`${n}被再生的光包圍了！`, `${n} is wrapped in renewing light!`), reraise: L(`${n}受到了再晨的祝福！`, `${n} is blessed with a Second Dawn!`),
     atkup: L(`${n}的攻擊力大幅提高了！`, `${n}'s attack rises sharply!`), defup: L(`${n}的防禦提高了！`, `${n}'s defence rises!`),
     agiup: L(`${n}的速度提高了！`, `${n}'s speed rises!`), magup: L(`${n}的魔力大幅提高了！`, `${n}'s magic rises sharply!`),
   }[st] || n;
@@ -570,6 +625,7 @@ function statusText(n, st) {
   return {
     sleep: L(`${n}睡著了！`, `${n} falls asleep!`), blind: L(`${n}看不清楚了！`, `${n} is blinded!`), hush: L(`${n}的咒文被封住了！`, `${n}'s spells are sealed!`),
     numb: L(`${n}麻痺了！`, `${n} is paralysed!`), confuse: L(`${n}陷入混亂了！`, `${n} is confused!`), poison: L(`${n}中毒了！`, `${n} is poisoned!`),
+    doom: L(`${n}聽見了死亡的鐘聲！（三回合後倒下）`, `${n} hears the death knell! (Falls in three rounds)`),
   }[st] || n;
 }
 async function useOnFriend(h, m, it) {
@@ -583,6 +639,7 @@ async function useOnFriend(h, m, it) {
   if (it.use === 'heal') { const n = Math.min(ms.maxhp - m.hp, Math.round(it.power * rnd(0.9, 1.1))); m.hp += n; sfx('heal'); popOn({ hero: true, h: m }, n, '#68f8a0'); await line(L(`${heroName(m)}回復了 ${n} 點體力！`, `${heroName(m)} recovers ${n} HP!`)); }
   if (it.use === 'mp') { const n = Math.min(ms.maxmp - m.mp, it.power); m.mp += n; sfx('heal'); await line(L(`${heroName(m)}回復了 ${n} 點魔力！`, `${heroName(m)} recovers ${n} MP!`)); }
   if (it.use === 'cure') { for (const k of it.st) delete m.st[k]; sfx('heal'); await line(L(`${heroName(m)}的異常狀態解除了。`, `${heroName(m)} is cured.`)); }
+  if (it.use === 'buffitem') { m.b.buffs[it.st] = 4; sfx('buff'); await fxFriends([m], 'buff'); await line(buffText(heroName(m), it.st)); }
 }
 
 // a weapon blow from a hero
@@ -609,13 +666,18 @@ async function physHit(h, f, sk, quiet) {
   }
   if (sk.drain) { h.hp = Math.min(s.maxhp, h.hp + Math.round(dmg / 4)); }
 }
-const elMul = (f, el) => (el && f.def.weak && f.def.weak.includes(el) ? 1.5 : el && f.def.resist && f.def.resist.includes(el) ? 0.5 : 1);
+const elMul = (f, el) => { const w = f.weak || f.def.weak, r = f.resist || f.def.resist; return el && w && w.includes(el) ? 1.5 : el && r && r.includes(el) ? 0.5 : 1; };
 async function spellHit(h, f, sk, many) {
   if (!f.alive) return;
   const s = stats(h);
   const mk = sk.flat ? 1 : (1 + s.mag / 200) * (h.b.buffs.magup ? 1.6 : 1) * (h.b.pepT ? 1.25 : 1);
   let dmg = sk.power * mk * rnd(0.9, 1.1) * elMul(f, sk.el);
   dmg = Math.round(dmg);
+  // a mirror mist throws spells back at the party
+  if (f.buffs.reflect && sk.spell && !sk.flat) {
+    const t = liveHeroes()[Math.floor(Math.random() * liveHeroes().length)];
+    if (t) { sfx('miss'); await line(L(`咒文被${foeName(f)}彈了回來！`, `${foeName(f)} throws the spell back!`), 0.6); await hurtHero(t, Math.round(dmg * 0.6 * (stats(t).resist === 'all' ? 0.7 : 1)), many, f); return; }
+  }
   sfx('monhit');
   await damageFoe(f, dmg, h, many);
 }
@@ -625,12 +687,37 @@ async function damageFoe(f, dmg, h, many) {
   if (f.st.sleep && dmg > 0 && chance(0.5)) delete f.st.sleep;
   await line(dmg > 0 ? L(`${foeName(f)}受到了 ${dmg} 點傷害！`, `${foeName(f)} takes ${dmg} damage!`) : L(`${foeName(f)}毫髮無傷！`, `${foeName(f)} takes no damage!`), many ? 0.55 : 0.8);
   if (f.hp <= 0) await killFoe(f);
+  else await checkPhase(f);
+}
+// a boss changes when it is hurt enough: new moves, new weaknesses, new looks, friends
+async function checkPhase(f) {
+  const ph = f.def.phases && f.def.phases[f.phase];
+  if (!ph || f.hp > f.maxhp * ph.hp) return;
+  f.phase++;
+  if (ph.acts) f.acts = ph.acts;
+  if (ph.twice !== undefined) f.twice = ph.twice;
+  if (ph.weak) f.weak = ph.weak;
+  if (ph.resist) f.resist = ph.resist;
+  if (ph.charge) f.charge = ph.charge;
+  if (ph.look) { f.art = monArt(f.def.art, ph.look); f.look = ph.look; }
+  B.shake = 12; sfx('abyss'); f.blink = 20;
+  if (ph.msg) await line(L(ph.msg[0], ph.msg[1]), 1.2);
+  for (const id of ph.summon || []) {
+    if (liveFoes().length >= 5) break;
+    const nf = makeFoe(id, B.opts), same = B.foes.filter((g) => g.id === id && g.alive);
+    nf.tag = same.length ? 'ABCDEFG'[same.length] : '';
+    B.foes.push(nf); layout(); sfx('encounter');
+    await line(L(`${nm(nf.def)}出現了！`, `${nm(nf.def)} appears!`), 0.8);
+  }
 }
 async function killFoe(f) {
   f.hp = 0; f.alive = false; f.fade = 24;
   sfx('die');
   B.exp += f.def.exp; B.gold += f.def.gold;
-  if (f.def.drop && chance(f.def.drop[1])) B.drops.push(f.def.drop[0]);
+  S.book = S.book || {}; S.book[f.id] = (S.book[f.id] || 0) + 1;
+  const luck = S.members.some((m) => m.hp > 0 && passive(m, 'lucky')) ? 1.6 : 1;
+  if (f.def.drop && chance(f.def.drop[1] * luck)) B.drops.push(f.def.drop[0]);
+  for (const [it, p] of f.def.drops || []) if (chance(p * luck)) B.drops.push(it);
   await line(L(`打倒了${foeName(f)}！`, `${foeName(f)} is defeated!`), 0.8);
 }
 
@@ -638,8 +725,12 @@ async function killFoe(f) {
 async function foeTurn(f) {
   if (!f.alive) return;
   f.guard = false;
-  let id = pickW(f.def.acts);
-  let a = MACTS[id];
+  let id, a;
+  if (f.charging) { id = f.charging; a = MACTS[id]; f.charging = null; }
+  else {
+    id = pickW(f.acts || f.def.acts); a = MACTS[id];
+    if ((a.kind === 'gather' && !f.charge) || (a.kind === 'reflect' && f.buffs.reflect)) { id = 'attack'; a = MACTS.attack; }
+  }
   if (f.st.hush && (a.kind === 'spell' || a.mp)) { id = 'attack'; a = MACTS.attack; }
   if (a.mp && f.mp < a.mp) { id = 'attack'; a = MACTS.attack; }
   if (a.kind === 'healally' && !liveFoes().some((g) => g.hp < g.maxhp * 0.6)) { id = 'attack'; a = MACTS.attack; }
@@ -665,6 +756,7 @@ async function foeTurn(f) {
       B.fx.push({ kind: 'breath', el: a.el, t: 0, n: 26 });
       await frames(18);
       for (const h of targets) {
+        if (h.hp <= 0) continue;
         const s = stats(h);
         let dmg = a.power * rnd(0.88, 1.12) * (1 + f.atk / 600);
         if (h.b.guard) dmg *= 0.5;
@@ -672,7 +764,7 @@ async function foeTurn(f) {
         if (h.b.buffs.mwall) dmg *= 0.6;
         dmg = Math.round(dmg);
         await hurtHero(h, dmg, targets.length > 1, f);
-        if (a.st && h.hp > 0 && chance(a.hit || 0.5) && !s.immune) { h.st[a.st] = a.st === 'poison' ? 1 : 3; await line(statusText(heroName(h), a.st), 0.6); }
+        if (a.st && h.hp > 0 && chance(a.hit || 0.5) && !resists(h, a.st)) { h.st[a.st] = a.st === 'poison' ? 1 : 3; await line(statusText(heroName(h), a.st), 0.6); }
       }
       break;
     }
@@ -680,7 +772,7 @@ async function foeTurn(f) {
       const targets = a.tgt === 'foes' ? liveHeroes() : [pickHeroTarget()];
       sfx('sleep');
       for (const h of targets) {
-        if (stats(h).immune || !chance(a.hit || 0.4) || h.st[a.st]) { await line(L(`${heroName(h)}沒有受到影響！`, `${heroName(h)} is unaffected!`), 0.6); continue; }
+        if (resists(h, a.st) || !chance(a.hit || 0.4) || h.st[a.st]) { await line(L(`${heroName(h)}沒有受到影響！`, `${heroName(h)} is unaffected!`), 0.6); continue; }
         h.st[a.st] = a.st === 'poison' ? 1 : 3;
         await line(statusText(heroName(h), a.st), 0.7);
       }
@@ -708,6 +800,28 @@ async function foeTurn(f) {
       } else await line(L('可是什麼也沒來。', 'But nothing comes.'));
       break;
     }
+    case 'gather': f.charging = f.charge; sfx('pep'); B.shake = 6; break;
+    case 'reflect': f.buffs.reflect = 3; sfx('buff'); break;
+    case 'mpdrain': {
+      const h = pickHeroTarget(), n = Math.min(h.mp, a.power);
+      h.mp -= n; f.mp += n; sfx('abyss');
+      await line(L(`${heroName(h)}的魔力被吸走了 ${n} 點！`, `${heroName(h)} loses ${n} MP!`));
+      break;
+    }
+    case 'herodebuff': {
+      sfx('curse');
+      for (const h of liveHeroes()) {
+        if (stats(h).immune || !chance(a.hit || 0.6)) { await line(L(`${heroName(h)}沒有受到影響！`, `${heroName(h)} is unaffected!`), 0.5); continue; }
+        h.b.buffs[a.st] = 3; await line(debuffText(heroName(h), a.st), 0.5);
+      }
+      break;
+    }
+    case 'flee': {
+      if (B.opts.boss || chance(0.5)) { await line(L('可是逃不掉！', "But it can't get away!")); break; }
+      f.alive = false; f.fade = 24; sfx('run');
+      await line(L(`${foeName(f)}逃走了！`, `${foeName(f)} runs away!`));
+      break;
+    }
     case 'dispel': {
       for (const h of liveHeroes()) h.b.buffs = {};
       for (const g of liveFoes()) g.buffs = {};
@@ -718,6 +832,7 @@ async function foeTurn(f) {
   }
 }
 // who a monster goes for: the front of the line a little more often, and around anyone covering
+const resists = (h, st) => stats(h).immune || (st === 'poison' && passive(h, 'nopoison'));
 function pickHeroTarget() {
   const live = liveHeroes();
   const w = live.map((h, i) => [h.b.cover ? 0.2 : 1 + (live.length - i) * 0.15, h]);
@@ -728,8 +843,8 @@ async function foeHits(f, h, a, many) {
   const cov = !many && liveHeroes().find((m) => m.b.cover && m !== h);
   if (cov) { await line(L(`${heroName(cov)}挺身擋下了攻擊！`, `${heroName(cov)} takes the blow!`), 0.5); h = cov; }
   const s = stats(h);
-  const atk = f.atk * MON_ATK_K * (f.buffs.atkup ? 1.5 : 1) * (f.st.blind ? 1 : 1);
-  const def = s.def * (h.b.buffs.defup ? 1.5 : 1) * (h.b.pepT ? 1.2 : 1);
+  const atk = f.atk * MON_ATK_K * (f.buffs.atkup ? 1.5 : 1) * (f.buffs.atkdown ? 0.65 : 1);
+  const def = s.def * (h.b.buffs.defup ? 1.5 : 1) * (h.b.buffs.defdown ? 0.6 : 1) * (h.b.pepT ? 1.2 : 1);
   if (chance((f.st.blind ? 0.45 : 0) + 1 / 48 + (h.b.buffs.agiup && h.id === 'pell' ? 0.12 : 0)) || (a.hitp && !chance(a.hitp))) { sfx('miss'); await line(L(`${heroName(h)}躲開了攻擊！`, `${heroName(h)} dodges!`), 0.6); return; }
   if (passive(h, 'block') && chance(0.1)) { sfx('miss'); await line(L(`${heroName(h)}用盾牌擋住了！`, `${heroName(h)} blocks with the shield!`), 0.6); return; }
   const base = atk / 2 - def / 4;
@@ -738,9 +853,11 @@ async function foeHits(f, h, a, many) {
   dmg = Math.round(dmg);
   await hurtHero(h, dmg, many, f);
   if (a.drain) { f.hp = Math.min(f.maxhp, f.hp + Math.round(dmg / 2)); }
-  if (a.st && h.hp > 0 && chance(a.hit || 0.3) && !s.immune && !h.st[a.st]) { h.st[a.st] = a.st === 'poison' ? 1 : 3; await line(statusText(heroName(h), a.st), 0.6); }
-  // a counter stance answers
+  if (a.st && h.hp > 0 && chance(a.hit || 0.3) && !resists(h, a.st) && !h.st[a.st]) { h.st[a.st] = a.st === 'poison' ? 1 : 3; await line(statusText(heroName(h), a.st), 0.6); }
+  if (a.sunder && h.hp > 0) { h.b.buffs.defdown = 3; await line(debuffText(heroName(h), 'defdown'), 0.5); }
+  // a counter stance answers; so, sometimes, does a fighter with the knack
   if (h.b.counter && h.hp > 0 && f.alive) { h.b.counter = false; await line(L(`${heroName(h)}反擊了！`, `${heroName(h)} strikes back!`), 0.5); await physHit(h, f, { power: 1.5 }, true); }
+  else if (h.hp > 0 && f.alive && passive(h, 'counter') && chance(0.22)) { await line(L(`${heroName(h)}反擊了！`, `${heroName(h)} strikes back!`), 0.5); await physHit(h, f, { power: 1.0 }, true); }
 }
 async function hurtHero(h, dmg, many, f) {
   const s = stats(h);
@@ -753,9 +870,11 @@ async function hurtHero(h, dmg, many, f) {
   if (h.st.sleep && dmg > 0 && chance(0.5)) delete h.st.sleep;
   await line(dmg > 0 ? L(`${heroName(h)}受到了 ${dmg} 點傷害！`, `${heroName(h)} takes ${dmg} damage!`) : L(`${heroName(h)}沒有受到傷害！`, `${heroName(h)} takes no damage!`), many ? 0.55 : 0.8);
   if (h.hp <= 0) {
+    const rise = h.b.buffs.reraise;
     h.st = {}; h.b.pepT = 0; h.b.buffs = {};
     sfx('die');
     await line(L(`${heroName(h)}倒下了……`, `${heroName(h)} has fallen...`), 0.9);
+    if (rise) { h.hp = Math.max(1, Math.round(s.maxhp * 0.35)); sfx('heal'); await fxFriends([h], 'heal'); await line(L(`再晨之光！${heroName(h)}站了起來！`, `The Second Dawn! ${heroName(h)} rises again!`), 0.9); }
   }
   void f;
 }
@@ -766,6 +885,14 @@ async function endOfRound() {
     const s = stats(h);
     if (h.st.poison) { const n = Math.max(1, Math.round(s.maxhp / 12)); h.hp = Math.max(1, h.hp - n); B.flashWin[S.members.indexOf(h)] = 8; popOn({ hero: true, h }, n, '#c070f0'); }
     if (passive(h, 'regen')) h.hp = Math.min(s.maxhp, h.hp + Math.round(s.maxhp / 16));
+    if (h.b.buffs.regen) { const n = Math.min(s.maxhp - h.hp, Math.round(s.maxhp / 10)); if (n > 0) { h.hp += n; popOn({ hero: true, h }, n, '#68f8a0'); } }
+    if (passive(h, 'mpregen')) h.mp = Math.min(s.maxmp, h.mp + Math.max(2, Math.round(s.maxmp / 20)));
+    if (h.st.doom && --h.st.doom <= 0) {
+      delete h.st.doom; clearLog();
+      await line(L(`死亡的鐘聲響起了……`, 'The death knell tolls...'), 0.6);
+      await hurtHero(h, h.hp, false, null);
+      continue;
+    }
     for (const k of Object.keys(h.b.buffs)) if (--h.b.buffs[k] <= 0) delete h.b.buffs[k];
     if (h.b.pepT && --h.b.pepT <= 0) { h.b.pepT = 0; }
     h.b.cover = false;
@@ -774,7 +901,7 @@ async function endOfRound() {
   for (const f of liveFoes()) {
     if (f.st.poison) { const n = Math.max(1, Math.round(Math.min(f.maxhp / 12, 60))); f.hp -= n; popOn(f, n, '#c070f0'); if (f.hp <= 0) { clearLog(); await line(L(`${foeName(f)}受到了毒的傷害。`, `${foeName(f)} is hurt by poison.`), 0.5); await killFoe(f); } }
     for (const k of Object.keys(f.buffs)) if (--f.buffs[k] <= 0) delete f.buffs[k];
-    for (const k of ['blind', 'hush']) if (f.st[k] && --f.st[k] <= 0) delete f.st[k];
+    for (const k of ['blind', 'hush', 'confuse']) if (f.st[k] && --f.st[k] <= 0) delete f.st[k];
   }
 }
 
@@ -793,7 +920,8 @@ async function finish() {
     for (const d of B.drops) { addItem(d); sfx('treasure'); await line(L(`魔物留下了「${nm(ITEMS[d])}」！`, `The monsters dropped ${nm(ITEMS[d])}!`), 1.2); }
     for (const h of [...S.members, ...S.reserve]) {
       if (h.hp <= 0 && !S.members.includes(h)) continue;
-      const out = gainExp(h, h.hp > 0 || !S.members.includes(h) ? B.exp : Math.floor(B.exp / 2));
+      const gain = h.hp > 0 || !S.members.includes(h) ? B.exp : Math.floor(B.exp / 2);
+      const out = gainExp(h, Math.round(gain * (passive(h, 'expup') ? 1.5 : 1)));
       for (const o of out) {
         clearLog();
         if (o.lv) { sfx('fanfare'); await line(o.text, 1.2); if (o.ups) await line(o.ups, 1.2); } else await line(o.text, 1);
@@ -935,6 +1063,7 @@ function drawParty() {
     if (h.st.sleep) marks.push(['#a0c8f8', 'Z']);
     if (h.st.numb) marks.push(['#f8e070', 'N']);
     if (h.st.confuse) marks.push(['#f890c0', '?']);
+    if (h.st.doom) marks.push(['#f84848', String(h.st.doom)]);
     marks.forEach(([c, m], k) => text(m, x + 50 - k * 7, y + 4, c));
     void n;
   });

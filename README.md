@@ -24,6 +24,26 @@ Together they light the lanterns of water, fire, earth and frost, and climb the 
 top the truth waits, and the world goes dark. The second half of the game is about finding each
 other again.
 
+### The expansion
+
+The journey is now much longer:
+- **Gullwing Grotto**: before the boat is yours, win it back from Captain Rena and her goblin pirates.
+- **Chimeholm and Galespire**: the Skyloom's door opens only to the Wind Bell, carried off by the storm roc Zephyra, in a new land across the eastern sea.
+- **Mossmere and the Sunken Archive**: after the fall, learn the true name of High Seer Morrow and why he wanted to unpick the world. Call him by it in the last battle.
+- **Each friend's own story**: Pell's mother in the Glimmer Mines, Mirela's drowned choir, Odo's master and his last recipe, Brannoc's brother the Black Lance, and Sera's lost childhood in the Thread Garden. Each one opens a fourth path on that friend's skill board.
+- **After the end**: a second star falls into the sea. Explore the Starwell, face Eclipse, and, deeper still, the Thousand-Year Shade.
+- Side stories: the lighthouse keeper's letters, the bards' old song of the first Dawnbearer, Gloomfen's hydra, Wren's shrine behind the falls.
+
+Things to do besides the story:
+- **The Crown Arena** in Luckhaven: six ranks, up to the champion Varro the Unbroken.
+- **The casino**: slot reels and Dawn Poker, with prizes for coins.
+- **Fishing** wherever the water ripples, for ten kinds of fish.
+- **The forge**: the Snowveil smith makes gear from monster materials.
+- **The Monster Book**, **Star Shards** for the collector and **six treasure maps** to dig up.
+- A **journal** in the menu tells you what to do next.
+
+Battles have more to them as well: about two hundred monsters, bosses that change shape and weaknesses as they are hurt, gather power, reflect spells or call for help, thunder, water and earth magic, ten more link arts, and accessories with effects such as regeneration, counters and extra experience.
+
 ## How it plays
 
 Battles are seen from the front, in the old style.
@@ -62,6 +82,6 @@ python -m http.server
 
 ## Credits
 
-The characters and portraits are by Charles Gabriel. The monsters are by Redshrike, JosephSeraph, Blarumyrran and Balmer. The tiles are by ArMM1998 and the battle backgrounds by troutsneeze. The music is by Juhani Junkala and Hydrogene. The font is Cubic 11.
+The characters and portraits are by Charles Gabriel. The monsters are by Redshrike, JosephSeraph, Blarumyrran, Balmer, Charles Gabriel (Antifarea) and troutsneeze. The tiles are by ArMM1998 and the battle backgrounds by troutsneeze. The music is by Juhani Junkala and Hydrogene. The font is Cubic 11.
 
 [CREDITS.md](CREDITS.md) lists every piece and its licence.

@@ -42,7 +42,15 @@ These are FF6-style battle sprites. Unless a line says otherwise, the licence is
   - "Wizard", used for High Seer Morrow: https://opengameart.org/content/wizard-0
   - "Steam monster": https://opengameart.org/content/steam-monster
 
-**Changes made:** every monster was cut out of its sheet, given a clear background and packed into `assets/monsters.png`. In the game some monsters are recoloured for their stronger kin and for the darkened world. Small monsters are drawn twice their size.
+- **Charles Gabriel (Antifarea)**, [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) (the pages also offer CC-BY-SA 3.0 and GPL; this game uses CC-BY 3.0). Credit: Charles Gabriel (Antifarea), hosted by OpenGameArt.org.
+  - "10 Fantasy RPG Enemies": https://opengameart.org/content/10-fantasy-rpg-enemies (slimes, cobras, goblins, cockatrices, lizards, rats, scorpions, wolves, ghosts, dragons)
+  - "10 More Fantasy RPG Enemies (plus a boss)": https://opengameart.org/content/10-more-fantasy-rpg-enemies-plus-a-boss (bats, eyes, soldiers, captains, skeletons, spiders, tigers, rabbits, pirates, ninjas, and the shadow boss used for the Thousand-Year Shade)
+- **Stephen "Redshrike" Challener**, "More RPG enemies!", [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) (also offered as CC-BY-SA 3.0 and OGA-BY 3.0): https://opengameart.org/content/more-rpg-enemies (the ink horror, jade serpent, harpy queen, gargoyle, drakeman, brain jelly, dark angel and mushroom folk)
+- **JosephSeraph**, "JS Monster Set - Elementals II", [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/): https://opengameart.org/content/js-monster-set-elementals-ii
+- **Balmer, from original sprites by Stephen "Redshrike" Challener**, "Bosses and monsters spritesheets (Ars Notoria)": the three forms of the mage, used for Eclipse. [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/). https://opengameart.org/content/bosses-and-monsters-spritesheets-ars-notoria
+- **troutsneeze**, the battlers from "Main art from Monster RPG 2" (the "Combat Media" pack), [CC0](https://creativecommons.org/publicdomain/zero/1.0/): https://opengameart.org/content/main-art-from-monster-rpg-2 (about seventy monsters of the expansion: the ape, yeti, panther, treants, oozes, ants, wasps, mummy, octopus, sea serpent, red dragon, efreet, the orbital eye and more). Only the first standing frame of each is used.
+
+**Changes made:** every monster was cut out of its sheet, given a clear background and packed into `assets/monsters.png`. In the game some monsters are recoloured for their stronger kin, for the darkened world, for the post-game and for some bosses (the Glimmer Colossus, the Drowned Cantor, the Shade). Small monsters are drawn twice their size.
 
 ## Map tiles
 
@@ -68,7 +76,9 @@ These are FF6-style battle sprites. Unless a line says otherwise, the licence is
     - https://opengameart.org/content/gt-rpg-soundtrack
 - **Hydrogene**, "16-bit Battle Theme I", [CC0](https://creativecommons.org/publicdomain/zero/1.0/): https://opengameart.org/content/16-bit-battle-theme-i
 
-**Changes made:** the music was converted to MP3. The fanfares and sound effects are played live by the game's own little sound chip.
+  - The expansion adds eighteen more tracks from the full G&T RPG soundtrack (gt-rpg-sountrack_2.zip on the same page, which lists the licence as OGA-BY 3.0; attribution to Juhani Junkala): Troubles Brewing, Hymn Mysterious Caves, Knights Theme A, Sinister Theme, Crystal Palace, Daisys Pub, Paladins Theme, Mist Covered Mountains, Haunted Veranda, Flooded Cellars, Marshlands, Farewell Old Friend, Town Cliffs of Dooneen, Castle Himmendal, Battle - Tides Turn, Hymn Waterfalls, Jovial Creatures and Dragon Gods.
+
+**Changes made:** the music was converted to MP3 (the expansion's tracks at 96 kbps). The fanfares and sound effects are played live by the game's own little sound chip.
 
 ## Font
 

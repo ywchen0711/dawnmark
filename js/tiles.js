@@ -220,6 +220,25 @@ ICON.mount = peak('#a88a5c', '#7c6040', '#56402c', '#c8b088');
 ICON.smount = peak('#e0c088', '#b89058', '#8a6438', '#f0d8a8');
 ICON.wmount = peak('#d8e0ec', '#a0aec4', '#707c98', '#ffffff');
 ICON.dmount = peak('#6a5a60', '#4a3c44', '#30262c', '#8a7a80');
+// the Starwell: a crater with a fallen star still glowing in it
+ICON.crater = fromGrid([
+  '................',
+  '................',
+  '.......WW.......',
+  '......WyyW......',
+  '....oooyyooo....',
+  '..ookkkWWkkkoo..',
+  '.okkNNNNNNNNkko.',
+  'okNNddPPPPddNNko',
+  'okNddPPWWPPddNko',
+  'okNNddPPPPddNNko',
+  '.okkNNddddNNkko.',
+  '..oooooooooooo..',
+  '................',
+  '................',
+  '................',
+  '................',
+], P);
 ICON.hill = fromGrid([
   '................', '................', '................', '................', '................', '................',
   '.....oooo.......', '...oollllo......', '..olllllmmo.....', '.ollllmmmmmo.oo.', 'ollllmmmmmmmolmo', 'oooooooooooooooo',
@@ -300,6 +319,7 @@ const T = {
   i_tower: { base: 'grass', icon: 'tower' }, i_shrine: { base: 'grass', icon: 'shrine' }, i_cave: { base: 'grass', icon: 'cave' },
   i_port: { base: 'grass', icon: 'port' }, i_ruin: { base: 'grass', icon: 'ruin' },
   i_stown: { base: 'sand', icon: 'town' }, i_scave: { base: 'sand', icon: 'cave' }, i_scastle: { base: 'sand', icon: 'castle' },
+  i_lport: { base: 'sand', icon: 'port' }, i_crater: { base: 'sand', icon: 'crater' },
   i_wtown: { base: 'snow', icon: 'village' }, i_wcave: { base: 'snow', icon: 'cave' }, i_dtower: { base: 'dgrass', icon: 'tower' },
   i_dcastle: { base: 'dgrass', icon: 'castle' }, i_dvillage: { base: 'dgrass', icon: 'village' }, i_dtown: { base: 'dgrass', icon: 'town' }, i_dport: { base: 'dgrass', icon: 'port' },
   i_dcave: { base: 'dgrass', icon: 'cave' }, i_dshrine: { base: 'dgrass', icon: 'shrine' }, i_druin: { base: 'dgrass', icon: 'ruin' },

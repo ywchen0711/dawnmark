@@ -303,7 +303,7 @@ def('odo_meet', async (E) => {
   E.join('odo', 12);
   await E.say(null, L('歐多加入了隊伍！', 'Odo joins the party!'));
   if (S.members.length + S.reserve.length > 4) await E.say(null, L('（戰鬥時最多四人上場。可以在選單的「隊伍」中更換出戰的同伴。）', '(Up to four fight at once. Change who fights under "Party" in the menu.)'));
-  await E.say('歐多', L('去碼頭吧！', "To the docks!"));
+  await SCRIPTS.odo_after_join(E);
 });
 def('brannoc_duel', async (E) => {
   E.music('march');
@@ -392,6 +392,7 @@ def('snow_elder', async (E) => {
   if (S.flags.fallen) { await E.say('長老', L('那位魔女大人每天都站在雕像前，望著南方的天空。', 'The witch stands before the statue every day, looking at the southern sky.')); return; }
   await E.say('長老', L('晨星之子，歡迎。……天織塔的守護者織母大人，已經衰弱了好多年。', 'Welcome, Dawnbearer. ...The Weaver, keeper of the Skyloom, has been weakening for many years.'));
   await E.say('長老', L('有什麼東西在吃她的絲線。從塔的內部。……小心你們身邊的人。', 'Something is eating her threads. From inside the tower. ...Beware those close to you.'));
+  if (S.flags.lanterns && !S.flags.windbell) await E.say('長老', L('四盞燈都亮了嗎。……那麼，還需要東方風鈴鎮的「風之鈴」。織母的門，只為鈴聲而開。', 'All four lanterns are lit? ...Then you still need the Wind Bell of Chimeholm in the east. The Weaver\'s door opens only to its song.'));
 });
 def('brannoc_join', async (E) => {
   E.music('resolve');
@@ -413,6 +414,8 @@ def('rimewyrm', async (E) => {
   if (r !== 'win') return false;
   await getLantern(E, 'lantern_i', L('霜之燈', 'Frost Lantern'), '#e8f8ff');
   await E.say('米蕾拉', L('天織塔在內海中央的島上。去吧，洛恩。去證明你是誰。', 'The Skyloom stands on the island in the middle of the inner sea. Go, Rowan. Go and show them who you are.'));
+  await E.say('瑟菈', L('……等一下。我在夢裡聽過：天織塔的門，要聽見「風之鈴」的歌聲才會打開。', '...Wait. I heard it in a dream: the door of the Skyloom opens only to the song of the Wind Bell.'));
+  await E.say('布藍諾', L('風之鈴……東方海上的風鈴鎮，有一口守護鎮子的古鈴。先去那裡吧。', 'The Wind Bell... Chimeholm, across the eastern sea, has an ancient bell that guards the town. We should go there first.'));
   S.flags.ch6_done = true;
 });
 
@@ -506,7 +509,8 @@ def('smith', async (E) => {
     const r = S.members.find((m) => m.id === 'rowan');
     if (r) { if (r.equip.weapon) E.give(r.equip.weapon); r.equip.weapon = 'dawnblade'; E.give('dawnblade', -1); }
     await E.say(null, L('得到了「晨星之劍」！洛恩裝備了它。\n左手的印記，再次亮了起來。', 'Received the Dawnblade! Rowan takes it up.\nThe mark on his left hand shines once more.'));
-    await E.say('瑟菈', L('……這樣就準備好了。吹響龍笛，飛向那座城吧。', '...Now we are ready. Blow the drake whistle, and fly to that castle.'));
+    if (!S.flags.archive_open) await SCRIPTS.archive_call(E);
+    else await E.say('瑟菈', L('……這樣就準備好了。吹響龍笛，飛向那座城吧。', '...Now we are ready. Blow the drake whistle, and fly to that castle.'));
     return;
   }
   await E.say('鐵匠', L('武器？抱歉，現在連鐵都沒有了。除非……天上掉下什麼好東西來。', 'Weapons? Sorry, there\'s not even iron left. Unless... something good falls from the sky.'));
@@ -630,6 +634,16 @@ def('morrow_final', async (E) => {
   await E.say('大祭司莫洛', L('……那就一起消失吧。', '...Then vanish together.'));
   const r = await E.battle('morrow2', { music: 'final' });
   if (r !== 'win') { S.flags.final_begun = false; return; }
+  if (S.inv.morrowname) {
+    E.music('lament');
+    await E.say('洛恩', L('（洛恩拿出了那條褪色的絲線，喊出了上面的名字。）\n「馬提亞斯！」', '(Rowan holds up the faded thread and calls the name stitched on it.)\n"Mattias!"'));
+    E.sfx('chime'); await E.flash('#fff8d0', 20);
+    await E.say('馬提亞斯', L('……那個名字……好久……沒有人叫過了……', '...That name... it has been so long... since anyone called it...'));
+    await E.say('馬提亞斯', L('娜兒……爸爸做了好可怕的事……我只是……不想再失去任何東西……', 'Nell... Papa has done such terrible things... I only... did not want to lose anything ever again...'));
+    if (has('mirela')) await E.say('米蕾拉', L('馬提亞斯先生。失去的痛，是因為愛過。……您的女兒，一定希望您好好地記得她。', 'Mister Mattias. Loss hurts because we loved. ...Your daughter would surely want you to remember her.'));
+    await E.say('馬提亞斯', L('……謝謝你們。快……那東西要出來了……把它……徹底……', '...Thank you. Quickly... the thing is coming out... finish it... for good...'));
+    S.flags.mattias_freed = true;
+  }
   await E.say('大祭司莫洛', L('……呵……呵呵……這副軀殼……已經沒用了……', '...Heh... heh heh... this shell... has served its purpose...'));
   E.shake(40); E.sfx('rift');
   await E.say('解織者', L('——我，是一切之前的虛無。', '—I am the nothing that came before all things.'));
@@ -684,6 +698,10 @@ def('ending_scenes', async (E) => {
   if (has('odo')) await E.say('歐多', L('今晚我來做菜！慶祝世界得救的大餐！哈哈哈！', "I'm cooking tonight! A feast for the world being saved! Ha ha ha!"));
   if (has('brannoc')) await E.say('布藍諾', L('國王重新任命我為騎士團長。……第一個命令，是請晨星之子吃飯。', "The King has named me head of the Order again. ...My first command is to treat the Dawnbearer to dinner."));
   if (has('sera')) await E.say('瑟菈', L('總有一天，我會成為新的織母。到那時候，我會把你們的線，織得最漂亮。', "One day I'll become the new Weaver. When I do, I'll weave your threads the most beautifully of all."));
+  if (S.flags.ep_sera) await E.say('瑟菈', L('對了，露米要來亮瀑村玩。……她說，要聽我講你們的事。', "Oh, Lumi is coming to visit Brightfall. ...She wants to hear me tell her all about you."));
+  if (S.flags.ep_brannoc) await E.say('布藍諾', L('凱斯卓也回到了騎士團。……兄弟兩個，從頭開始。', 'Kestrel has rejoined the Order too. ...Two brothers, starting over.'));
+  if (S.flags.letters_done) await E.say(null, L('海鷗港的燈塔上，一個老人和他的兒子、孫女，一起看著日出。', 'On the Gullport lighthouse, an old man, his son and his granddaughter watch the sunrise together.'));
+  if (S.flags.mattias_freed) await E.say(null, L('沉沒書庫的入口，有人放了一束花。花旁邊的卡片上寫著：「給娜兒，和她的爸爸。」', 'Someone has left flowers at the entrance of the Sunken Archive. The card beside them says: "For Nell, and her papa."'));
   await E.say('小雀', L('洛恩。……生日快樂。晚了好久好久的那種。', 'Rowan. ...Happy birthday. A very, very late one.'));
   await E.wait(40);
 });

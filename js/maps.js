@@ -63,6 +63,7 @@ const stamp = (k, st, e) => ({ k, st, e });
 export const MAPS = {};
 const def = (id, o) => { MAPS[id] = { id, ...o }; };
 const nm = (zh, en) => () => L(zh, en);
+export { build, grid, npc, warp, chest, glint, trig, save, stamp, def as defMap, nm as mapName, BASE };
 
 // =====================================================================================
 // the world
@@ -70,14 +71,18 @@ const nm = (zh, en) => () => L(zh, en);
 export const WORLD = {
   bright: [11, 9], crag: [7, 5], sol: [22, 22], under: [35, 30], dove: [40, 22], temple: [44, 11], gull: [53, 30],
   smolder: [62, 46], sand: [20, 52], ruins: [35, 57], snow: [67, 14], frost: [72, 7], loom: [47, 42],
+  // the expansion
+  grotto: [56, 25], luck: [54, 55], chime: [90, 20], gale: [97, 9], garden: [86, 9], moss: [80, 54], fen: [91, 48], archive: [95, 69],
+  mines: [6, 24], choir: [38, 10], monastery: [74, 28], ashford: [50, 6], starwell: [25, 69],
 };
 // where Homeward and the feather take you: [world x, y]
 export const ZOOM = {
   bright: { n: ['亮瀑村', 'Brightfall'], at: [11, 10] }, sol: { n: ['索爾海文', 'Solhaven'], at: [22, 23] }, dove: { n: ['鴿巢鎮', 'Dovecote'], at: [40, 23] },
   gull: { n: ['海鷗港', 'Gullport'], at: [53, 31] }, sand: { n: ['沙梅爾', 'Sandmere'], at: [20, 53] }, snow: { n: ['雪幕村', 'Snowveil'], at: [67, 15] },
+  luck: { n: ['幸運港', 'Luckhaven'], at: [54, 56] }, chime: { n: ['風鈴鎮', 'Chimeholm'], at: [90, 21] }, moss: { n: ['苔沼村', 'Mossmere'], at: [80, 55] },
 };
 function worldBuild(f) {
-  const W = 80, Hh = 64, fall = !!f.fallen;
+  const W = 104, Hh = 76, fall = !!f.fallen;
   const b = build(W, Hh, 'water');
   const { set, get, rect } = b;
   const land = (x0, y0, x1, y1, k) => {
@@ -94,6 +99,12 @@ function worldBuild(f) {
   land(61, 3, 77, 33, 'snow');
   land(58, 42, 67, 50, 'grass');
   land(44, 39, 50, 45, 'grass');
+  // the expansion: the windswept east, the southern jungle, the sunken isle, the resort isle
+  land(83, 4, 101, 31, 'grass');
+  land(70, 41, 96, 62, 'grass');
+  land(89, 66, 100, 73, 'grass');
+  land(50, 52, 58, 60, 'sand');
+  if (f.cleared) land(18, 65, 32, 73, 'sand');
   // the river and the temple lake
   rect(31, 2, 32, 38, 'water');
   for (let y = 7; y <= 15; y++) for (let x = 39; x <= 49; x++) { const dx = (x - 44) / 5.4, dy = (y - 11) / 4.2; if (dx * dx + dy * dy < 1) set(x, y, 'water'); }
@@ -109,6 +120,11 @@ function worldBuild(f) {
   for (const [x, y] of [[12, 47], [13, 47], [26, 50], [27, 51], [40, 49], [14, 58], [30, 46], [9, 53]]) mt(x, y, x, y, 'smount');
   mt(69, 4, 71, 4, 'wmount'); mt(73, 4, 75, 5, 'wmount'); mt(68, 9, 76, 9, 'wmount'); set(72, 9, 'snow');
   for (const [x, y] of [[63, 20], [64, 21], [70, 24], [74, 18], [65, 28]]) mt(x, y, x, y, 'wmount');
+  // the east: a ridge round the wind tower, hills by the town
+  for (const [x, y] of [[93, 13], [94, 13], [95, 13], [98, 13], [99, 13], [100, 12], [93, 12], [92, 6], [92, 7], [88, 14], [87, 15], [96, 22], [97, 23], [85, 26], [99, 27]]) mt(x, y, x, y);
+  // the jungle: old peaks
+  for (const [x, y] of [[75, 46], [76, 46], [84, 44], [85, 45], [73, 58], [88, 57], [89, 58], [94, 53]]) mt(x, y, x, y);
+  if (f.cleared) for (const [x, y] of [[21, 67], [29, 67], [22, 72], [30, 71]]) mt(x, y, x, y, 'smount');
   // the burning isle: a ring of peaks round the crater
   for (const [x, y] of [[61, 45], [62, 44], [63, 45], [61, 47], [63, 47], [60, 46], [64, 46]]) set(x, y, 'mount');
   // the Skyloom's island: cliffs all round but the landing
@@ -117,6 +133,7 @@ function worldBuild(f) {
   for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) {
     const k = get(x, y), r = hash(x, y, 11), m = hash(x >> 2, y >> 2, 5);
     if (k === 'grass' && r < 0.2 && m < 0.5) set(x, y, 'forest');
+    if (k === 'grass' && x >= 70 && y >= 41 && y <= 62 && r < 0.45) set(x, y, 'forest');
     if (k === 'sand' && r < 0.06) set(x, y, 'sforest');
     if (k === 'snow' && r < 0.14 && m < 0.6) set(x, y, 'wforest');
   }
@@ -129,6 +146,12 @@ function worldBuild(f) {
   // places
   const P = WORLD;
   const place = (key, k) => set(P[key][0], P[key][1], k);
+  const dk = { i_town: 'i_dtown', i_village: 'i_dvillage', i_cave: 'i_dcave', i_shrine: 'i_dshrine', i_castle: 'i_dcastle', i_tower: 'i_dtower', i_port: 'i_dport', i_ruin: 'i_druin' };
+  const place2 = (key, k) => place(key, fall && dk[k] ? dk[k] : k);
+  place2('grotto', 'i_cave'); place2('chime', 'i_town'); place2('gale', 'i_tower'); place2('moss', 'i_village'); place2('fen', 'i_cave'); place2('archive', 'i_shrine');
+  place('luck', fall ? 'i_dport' : 'i_lport'); place2('mines', 'i_cave'); place2('choir', 'i_shrine'); place('monastery', 'i_wtown'); place2('ashford', 'i_castle');
+  if (fall) place('garden', 'i_druin');
+  if (f.cleared) place('starwell', 'i_crater');
   if (!fall) {
     place('bright', 'i_village'); place('crag', 'i_cave'); place('sol', 'i_castle'); place('under', 'i_cave'); place('dove', 'i_town'); place('temple', 'i_shrine');
     place('gull', 'i_port'); place('smolder', 'i_cave'); place('sand', 'i_stown'); place('ruins', 'i_scave'); place('snow', 'i_wtown'); place('frost', 'i_wcave'); place('loom', 'i_tower');
@@ -137,6 +160,8 @@ function worldBuild(f) {
     place('gull', 'i_dport'); place('smolder', 'i_dcave'); place('sand', 'i_stown'); place('ruins', 'i_scave'); place('snow', 'i_wtown'); place('frost', 'i_wcave'); place('loom', 'i_dtower');
   }
   for (const [x, y] of Object.values(P)) for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) { const k = get(x + dx, y + dy); if (k && k.endsWith('forest')) set(x + dx, y + dy, k === 'forest' ? 'grass' : k === 'sforest' ? 'sand' : 'snow'); }
+  // the grotto's mouth stays on dry land
+  set(55, 25, 'grass'); set(56, 26, 'grass'); set(55, 26, 'grass');
   // the sea lane past the burning isle: a clear landing
   set(62, 48, 'grass'); set(62, 49, 'grass'); set(47, 43, 'grass'); set(47, 44, 'grass'); set(47, 45, 'grass');
   // darkness falls
@@ -157,11 +182,29 @@ function worldBuild(f) {
   wp('ruins', 'ruins1', 11, 18, 'u');
   wp('snow', 'snowveil', 14, 23, 'u');
   wp('frost', 'frost1', 12, 22, 'u', (fl) => fl.cloak, () => L('暴風雪太猛烈了，沒辦法前進。', 'The blizzard is too fierce to go on.'));
-  wp('loom', fall ? 'citadel1' : 'loom1', 14, 22, 'u', (fl) => (fall ? fl.drake && fl.dawnblade : fl.lanterns), () => (fall ? L('浮在空中的城堡，走不上去。', 'A castle floating in the sky. You cannot walk up to it.') : L('高塔的門被看不見的力量封住了。四盞燈……？', 'An unseen force seals the tower door. Four lanterns...?')));
+  wp('loom', fall ? 'citadel1' : 'loom1', 14, 22, 'u', (fl) => (fall ? fl.drake && fl.dawnblade && fl.archive_done : fl.lanterns && fl.windbell), () => (fall ? (f.drake && f.dawnblade ? L('城堡的大門被一層漆黑的霧封住了。……瑟菈說，要先知道莫洛真正的名字。', "A pitch-black mist seals the castle gate. ...Sera says you must first learn Morrow's true name.") : L('浮在空中的城堡，走不上去。', 'A castle floating in the sky. You cannot walk up to it.')) : f.lanterns ? L('四盞燈的光照在門上，門卻沒有打開。……遠遠的東方，好像傳來了風鈴的聲音。', 'The light of the four lanterns falls on the door, but it does not open. ...From far to the east comes the sound of wind chimes.') : L('高塔的門被看不見的力量封住了。四盞燈……？', 'An unseen force seals the tower door. Four lanterns...?')));
+  // the expansion's places
+  wp('grotto', 'grotto1', 12, 22, 'u', (fl) => fl.grotto_open || fl.grotto_done, () => L('潮濕的洞窟。裡面傳來了哥布林的笑聲……現在還是別進去吧。', 'A damp sea cave. Goblin laughter echoes inside... better not, for now.'));
+  wp('luck', 'luckhaven', 15, 26, 'u');
+  wp('chime', 'chimeholm', 16, 25, 'u');
+  wp('gale', 'gale1', 14, 22, 'u', (fl) => fl.gale_open, () => L('高塔的門口吹著狂風，連站都站不穩。', 'A gale howls at the tower door. You can barely stand.'));
+  wp('moss', 'mossmere', 15, 25, 'u');
+  wp('fen', 'fen1', 12, 22, 'u');
+  wp('archive', 'archive1', 12, 22, 'u', (fl) => fl.archive_open, () => L('沉在海裡的古老建築。入口被海水淹沒了。', 'An old building sunk in the sea. The way in is under water.'));
+  wp('mines', 'mines1', 12, 22, 'u', (fl) => fl.ep_pell_start, () => L('廢棄的礦坑。入口被木板封住了。', 'An abandoned mine, its mouth boarded up.'));
+  wp('choir', 'choir1', 12, 22, 'u', (fl) => fl.ep_mirela_start, () => L('湖邊的小祠堂。門上刻著一行字：「為沉沒的歌聲」。', 'A little shrine by the lake. Carved on the door: "For the drowned song".'));
+  wp('monastery', 'monastery1', 12, 22, 'u', (fl) => fl.ep_odo_start, () => L('雪山上的修道院。大門被冰封住了。', 'A monastery on the snowy peak. Its gate is frozen shut.'));
+  wp('ashford', 'ashford1', 14, 24, 'u', (fl) => fl.ep_brannoc_start, () => L('一座古老的城堡。城門緊閉著。', 'An old keep. Its gate is shut tight.'));
+  if (fall) wp('garden', 'garden1', 12, 22, 'u', (fl) => fl.ep_sera_start, () => L('枯萎的庭園。看不見的絲線擋住了去路。', 'A withered garden. Unseen threads bar the way.'));
+  if (f.cleared) wp('starwell', 'starwell1', 12, 22, 'u');
   return b.done({
     world: true,
     zone(x, y, mode) {
-      if (mode === 'boat') return fall ? 'dark2' : 'sea';
+      if (mode === 'boat') return fall ? 'dark2' : x >= 68 || y >= 62 ? 'sea2' : 'sea';
+      if (y >= 63 && x < 40) return 'starwell2';
+      if (x >= 82 && y <= 34) return fall ? 'dark3' : 'east';
+      if (x >= 69 && y >= 40) return fall ? 'dark3' : 'jungle';
+      if (x >= 49 && x <= 59 && y >= 51 && y <= 61) return fall ? 'dark2' : 'luck';
       if (fall) return x < 31 && y < 40 ? 'dark' : 'dark2';
       if (x <= 19 && y <= 16) return 'crag';
       if (x <= 26 && y <= 26) return 'road';
@@ -365,8 +408,8 @@ def('solhaven', {
     return b.done({ tint: fall ? 'rgba(40,0,40,0.3)' : null });
   },
 });
-const room = (id, rows, legend, out, extra = {}) => def(id, { name: null, music: extra.music || 'town', safe: true, build: (f) => grid(rows, { d: warp(extra.floor || 'wood', ...out, 'd'), ...legend }, { id, ...(extra.meta || {}) }), ...extra });
-const ROOM = (inside) => ['###############', '###############', ...inside, '#######dd######'];
+export const room = (id, rows, legend, out, extra = {}) => def(id, { name: null, music: extra.music || 'town', safe: true, build: (f) => grid(rows, { d: warp(extra.floor || 'wood', ...out, 'd'), ...legend }, { id, ...(extra.meta || {}) }), ...extra });
+export const ROOM = (inside) => ['###############', '###############', ...inside, '#######dd######'];
 room('sol_inn', ROOM(['#+e+e+e+++++x+#', '#+e+e+e+++kk++#', '#++++++++++1++#', '#++[[[++++++++#', '#++[[[++a+++++#', '#+++++++++++++#', '#+++++++++++++#']),
   { e: stamp('wood', 'bed'), x: stamp('wood', 'plant'), '1': npc('wood', 'sol_inn', 'woman', 'sol_innkeeper', { fixed: true }), a: npc('wood', 'sol_traveler', 'samurai', 'sol_traveler') }, ['solhaven', 6, 12]);
 room('sol_church', ROOM(['#n]]]]]]]]]]]n#', '#n]]]]]1]]]]]n#', '#nnnnnnKnnnnnn#', '#n+++nnnnn+++n#', '#n+++nnnnn+++n#', '#nnnnnnnnnnnnn#', '#nnnnn2nnnnnnn#']),
@@ -491,13 +534,13 @@ def('dovecote', {
     return b.done({ tint: fall ? 'rgba(40,0,40,0.28)' : null });
   },
 });
-const inn = (id, back, keeper = 'woman') => room(id, ROOM(['#+e+e+e+++++x+#', '#+e+e+e+++kk++#', '#++++++++++1++#', '#++[[[++++++++#', '#++[[[++++++++#', '#+++++++++++++#', '#+++++++++++++#']),
+export const inn = (id, back, keeper = 'woman') => room(id, ROOM(['#+e+e+e+++++x+#', '#+e+e+e+++kk++#', '#++++++++++1++#', '#++[[[++++++++#', '#++[[[++++++++#', '#+++++++++++++#', '#+++++++++++++#']),
   { e: stamp('wood', 'bed'), x: stamp('wood', 'plant'), '1': npc('wood', id + '_keeper', keeper, id + '_keeper', { fixed: true }) }, back);
-const chapel = (id, back, extra = {}) => room(id, ROOM(['#n]]]]]]]]]]]n#', '#n]]]]]1]]]]]n#', '#nnnnnnKnnnnnn#', '#n+++nnnnn+++n#', '#n+++nn2nn+++n#', '#nnnnnnnnnnnnn#', '#nnnnnnnnnnnnn#']),
+export const chapel = (id, back, extra = {}) => room(id, ROOM(['#n]]]]]]]]]]]n#', '#n]]]]]1]]]]]n#', '#nnnnnnKnnnnnn#', '#n+++nnnnn+++n#', '#n+++nn2nn+++n#', '#nnnnnnnnnnnnn#', '#nnnnnnnnnnnnn#']),
   { '1': npc('redrug', id + '_priest', 'priest', 'church'), '2': extra.two || 'stone' }, back, { music: 'peace', floor: 'stone' });
-const shopRoom = (id, back, sprite, talk) => room(id, ROOM(['#+x++++++++x++#', '#+kkkkkkkkkkk+#', '#++++++1++++++#', '#+++++++++++++#', '#+++++++++++++#', '#+++++++++++++#', '#+++++++++++++#']),
+export const shopRoom = (id, back, sprite, talk) => room(id, ROOM(['#+x++++++++x++#', '#+kkkkkkkkkkk+#', '#++++++1++++++#', '#+++++++++++++#', '#+++++++++++++#', '#+++++++++++++#', '#+++++++++++++#']),
   { x: stamp('wood', 'shelf'), '1': npc('wood', id + '_npc', sprite, talk, { fixed: true }) }, back);
-const home = (id, back, sprite, talk) => room(id, ROOM(['#+e+++++++++x+#', '#+++++++++++++#', '#+++++t+++++++#', '#+++++++++++++#', '#+1+++++++++++#', '#+++++++++++++#', '#+++++++++++++#']),
+export const home = (id, back, sprite, talk) => room(id, ROOM(['#+e+++++++++x+#', '#+++++++++++++#', '#+++++t+++++++#', '#+++++++++++++#', '#+1+++++++++++#', '#+++++++++++++#', '#+++++++++++++#']),
   { e: stamp('wood', 'bed'), x: stamp('wood', 'dresser'), t: stamp('wood', 'table'), '1': npc('wood', id + '_npc', sprite, talk) }, back);
 inn('dove_inn', ['dovecote', 4, 9]);
 chapel('dove_church', ['dovecote', 11, 9], { two: { k: 'stone', e: { type: 'npc', id: 'mirela_ch', sprite: 'healer_f', dir: 'u', talk: 'mirela_meet', cond: (fl) => !fl.has_mirela && !fl.fallen } } });
@@ -536,7 +579,7 @@ def('temple1', {
     c: chest('stone', 'tp_c1', 'ether', 1), g: glint('stone', 'tp_g1', 'seeddef'),
   }, { id: 'temple1', zone: () => 'temple', tint: f.fallen ? 'rgba(40,40,0,0.25)' : null }),
 });
-const shrineRoom = (id, name, music, sheetWall, floor, legend, back, zone) => def(id, {
+export const shrineRoom = (id, name, music, sheetWall, floor, legend, back, zone) => def(id, {
   name, music, zone: null,
   build: (f) => {
     const W2 = 19, H2 = 17, wl = sheetWall, fl = floor;
@@ -584,11 +627,12 @@ def('gullport', {
     for (let y = 0; y < 26; y++) if (y < 11 || y > 14) b.set(0, y, fall ? 'dbush' : 'bush');
     if (!fall) {
       b.npc('gl_sailor', 'pirate', 27, 10, 'gl_sailor');
-      b.npc('gl_captain', 'captain', 30, 13, 'gl_captain');
+      b.npc('gl_captain', 'captain', 30, 13, 'gl_captain2');
       b.npc('gl_w', 'maiden', 12, 15, 'gl_w', { wander: true });
       b.npc('gl_m', 'youth', 20, 8, 'gl_m', { wander: true });
       b.npc('gl_fish', 'man', 24, 15, 'gl_fish');
-      if (f.has_odo && !f.brannoc_duel) b.e({ type: 'trigger', x: 25, y: 12, run: 'brannoc_duel', once: 'brannoc_duel' });
+      if (f.rena_dead && !f.brannoc_duel) b.e({ type: 'trigger', x: 25, y: 12, run: 'brannoc_duel', once: 'brannoc_duel' });
+      if (!f.rena_dead) b.npc('gl_hint', 'man', 7, 9, 'gl_grotto_hint');
     } else {
       b.npc('gl_sailor', 'pirate', 27, 10, 'gl_fallen1');
       b.npc('gl_w', 'maiden', 12, 15, 'gl_fallen2');
@@ -771,11 +815,11 @@ shrineRoom('frost2', nm('霜冠洞窟　冰之心', 'The Frostcrown, Ice Heart')
 // =====================================================================================
 // The Skyloom, and the Unspun Citadel that takes its place
 // =====================================================================================
-const tower = (id, name, music, zone, rows, legend, down, up, extra = {}) => def(id, {
+export const tower = (id, name, music, zone, rows, legend, down, up, extra = {}) => def(id, {
   name, music, zone, dark: extra.dark,
   build: () => grid(rows, { '<': warp('pfloor', ...down, 'd'), '^': warp('pfloor', ...up, 'u'), u: 'ppit', ...legend }, { id, zone: () => zone, tint: extra.tint || null }),
 });
-const FLOOR_A = [
+export const FLOOR_A = [
   'YYYYYYYYYYYYYYYYYYYYYYYYYYYYY',
   'YYYYYYYYYYYYYY^YYYYYYYYYYYYYY',
   'YYYYYYYYYYYYYYyYYYYYYYYYYYYYY',
@@ -801,7 +845,7 @@ const FLOOR_A = [
   'YYYYYYYYYYYYYYyYYYYYYYYYYYYYY',
   'YYYYYYYYYYYYYY<YYYYYYYYYYYYYY',
 ];
-const FLOOR_B = [
+export const FLOOR_B = [
   'YYYYYYYYYYYYYYYYYYYYYYYYYYY',
   'YYYYYYYYYYYYY^YYYYYYYYYYYYY',
   'YYYYYYYYYYYYYyYYYYYYYYYYYYY',

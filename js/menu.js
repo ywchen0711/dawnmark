@@ -37,26 +37,31 @@ async function pickMember(title, filter = () => true, list = S.members) {
 export async function fieldMenu(info) {
   const close = panel(() => {
     drawParty(4, 4, 158);
-    windowBox(166, 170, 86, 50);
-    text(`${S.gold} G`, 244, 178, '#f8e070', { align: 'right' });
-    text(fmtTime(S.time), 244, 196, '#f8f8f8', { align: 'right' });
+    windowBox(166, 184, 86, 38);
+    text(`${S.gold} G`, 244, 190, '#f8e070', { align: 'right' });
+    text(fmtTime(S.time), 244, 205, '#f8f8f8', { align: 'right' });
   });
   let last = 0;
   for (;;) {
-    const r = await menu([
-      L('道具', 'Items'), L('咒文', 'Spells'), L('技能盤', 'Skills'), L('裝備', 'Equip'), L('狀態', 'Status'), L('作戰', 'Tactics'), L('隊伍', 'Party'), L('設定', 'Config'), { label: L('記錄', 'Save'), disabled: !info.canSave },
-    ], { x: 166, y: 4, w: 86, start: last });
+    const items = [
+      ['item', L('道具', 'Items')], ['spell', L('咒文', 'Spells')], ['board', L('技能盤', 'Skills')], ['equip', L('裝備', 'Equip')], ['status', L('狀態', 'Status')], ['tactics', L('作戰', 'Tactics')], ['party', L('隊伍', 'Party')],
+      ['journal', L('日誌', 'Journal')], ['book', L('圖鑑', 'Book'), !S.inv.monsterbook], ['config', L('設定', 'Config')], ['save', L('記錄', 'Save'), !info.canSave],
+    ];
+    const r = await menu(items.map(([, label, off]) => ({ label, disabled: !!off })), { x: 166, y: 4, w: 86, start: last, maxRows: 11, rowH: 15 });
     if (r < 0) break;
     last = r;
-    if (r === 0) { const z = await itemMenu(); if (z) { close(); return z; } }
-    if (r === 1) { const z = await spellMenu(); if (z) { close(); return z; } }
-    if (r === 2) await boardMenu();
-    if (r === 3) await equipMenu();
-    if (r === 4) await statusMenu();
-    if (r === 5) await tacticsMenu();
-    if (r === 6) await partyMenu();
-    if (r === 7) await settingsMenu();
-    if (r === 8) { const ok = save(0); sfx(ok ? 'save' : 'buzz'); await notice(ok ? L('冒險已記錄。', 'Your adventure has been saved.') : L('無法存檔（瀏覽器不允許）。', "Can't save (the browser blocked it).")); }
+    const id = items[r][0];
+    if (id === 'item') { const z = await itemMenu(); if (z) { close(); return z; } }
+    if (id === 'spell') { const z = await spellMenu(); if (z) { close(); return z; } }
+    if (id === 'board') await boardMenu();
+    if (id === 'equip') await equipMenu();
+    if (id === 'status') await statusMenu();
+    if (id === 'tactics') await tacticsMenu();
+    if (id === 'party') await partyMenu();
+    if (id === 'journal' && hooks.journal) await hooks.journal();
+    if (id === 'book' && hooks.book) await hooks.book();
+    if (id === 'config') await settingsMenu();
+    if (id === 'save') { const ok = save(0); sfx(ok ? 'save' : 'buzz'); await notice(ok ? L('冒險已記錄。', 'Your adventure has been saved.') : L('無法存檔（瀏覽器不允許）。', "Can't save (the browser blocked it).")); }
   }
   close();
   return null;
@@ -74,6 +79,14 @@ async function itemMenu() {
     if (it.use === 'zoom') { const z = hooks.zoom && (await hooks.zoom()); if (z) { addItem(id, -1); return z; } continue; }
     if (it.use === 'whistle') { if (hooks.whistle) await hooks.whistle(); return null; }
     if (it.use === 'repel') { addItem(id, -1); S.repel = 160; sfx('holy'); await notice(L('四周瀰漫著神聖的香氣。', 'A holy scent fills the air.')); continue; }
+    if (it.use === 'book') { if (hooks.book) await hooks.book(); continue; }
+    if (it.use === 'tmap') { if (hooks.tmap) await hooks.tmap(id); continue; }
+    if (it.use === 'healall' || it.use === 'fullall') {
+      addItem(id, -1); sfx('heal');
+      for (const m of [...S.members, ...S.reserve]) if (m.hp > 0) { const s2 = stats(m); m.hp = it.use === 'fullall' ? s2.maxhp : Math.min(s2.maxhp, m.hp + it.power); if (it.use === 'fullall') m.mp = s2.maxmp; }
+      await notice(L('全體同伴回復了！', 'Everyone recovers!'));
+      continue;
+    }
     const target = await pickMember(L('給誰使用？', 'Use on whom?'), (m) => (it.use === 'revive' ? m.hp <= 0 : m.hp > 0), [...S.members, ...S.reserve]);
     if (!target) continue;
     await useItemOn(id, target);
@@ -107,6 +120,8 @@ export const canEquip = (m, it) => {
 function equipDesc(it) {
   const who = Object.keys(HEROES).filter((id) => canEquip({ id }, it)).map((id) => nm(HEROES[id])).join(L('、', ', '));
   const parts = Object.entries(STATN).filter(([k]) => it[k]).map(([k, n]) => `${L(n[0], n[1])}+${it[k]}`);
+  if (it.pass && PASS_SHORT[it.pass]) parts.push(L(...PASS_SHORT[it.pass]));
+  if (it.resist) parts.push(it.resist === 'all' ? L('抗性', 'Resist') : L('抗', 'Res.') + it.resist);
   return L(`${parts.join(' ')}　${who}`, `${parts.join(' ')}  ${who}`);
 }
 // spells usable outside battle
@@ -131,7 +146,7 @@ async function spellMenu() {
 }
 
 // ---------- the skill board ----------
-const PASS_SHORT = { crit: ['會心↑', 'Crit up'], pep: ['燃心↑', 'Fire up'], steal: ['偷竊↑', 'Steal up'], gold: ['金幣↑', 'Gold up'], first: ['先制↑', 'First up'], mpcut: ['省魔', 'MP saver'], regen: ['再生', 'Regen'], double: ['連發', 'Twin cast'], block: ['盾擋', 'Block'] };
+const PASS_SHORT = { crit: ['會心↑', 'Crit up'], pep: ['燃心↑', 'Fire up'], steal: ['偷竊↑', 'Steal up'], gold: ['金幣↑', 'Gold up'], first: ['先制↑', 'First up'], mpcut: ['省魔', 'MP saver'], regen: ['再生', 'Regen'], double: ['連發', 'Twin cast'], block: ['盾擋', 'Block'], lucky: ['幸運', 'Lucky'], mpregen: ['回魔', 'MP regen'], counter: ['反擊', 'Counter'], expup: ['經驗↑', 'EXP up'], swift: ['迅捷', 'Swift'], nopoison: ['防毒', 'No poison'], pepstart: ['鬥志', 'Spirit'] };
 const STAT_SHORT = { hp: ['體力', 'HP'], mp: ['魔力', 'MP'], str: ['力量', 'STR'], def: ['防禦', 'DEF'], agi: ['速度', 'AGI'], mag: ['魔力', 'MAG'], heal: ['回復', 'HEAL'] };
 function nodeLabel(eff) {
   if (eff.skill) return nm(SKILLS[eff.skill]);
@@ -150,15 +165,18 @@ async function boardMenu() {
   const m = await pickMember(L('誰的技能盤？', "Whose skill board?"), () => true, [...S.members, ...S.reserve]);
   if (!m) return;
   const paths = BOARDS[m.id];
-  let col = 0, row = 0;
-  const canOpen = (p, i) => !nodeOpen(m, p, i) && (i === 0 || nodeOpen(m, p, i - 1));
+  let col = 0, row = 0, left = 0;
+  const locked = (p) => paths[p].need && !S.flags[paths[p].need];
+  const canOpen = (p, i) => !locked(p) && !nodeOpen(m, p, i) && (i === 0 || nodeOpen(m, p, i - 1));
   await custom({
     t: 0,
     update() {
       this.t++;
       if (this.confirm) return;
-      if (input.repeat('left')) { col = (col + 2) % 3; sfx('cursor'); }
-      if (input.repeat('right')) { col = (col + 1) % 3; sfx('cursor'); }
+      const np = paths.length;
+      if (input.repeat('left')) { col = (col + np - 1) % np; sfx('cursor'); }
+      if (input.repeat('right')) { col = (col + 1) % np; sfx('cursor'); }
+      if (col < left) left = col; if (col > left + 2) left = col - 2;
       if (input.repeat('up')) { row = (row + 5) % 6; sfx('cursor'); }
       if (input.repeat('down')) { row = (row + 1) % 6; sfx('cursor'); }
       if (input.pressed('b')) { sfx('cancel'); this.done(); return; }
@@ -176,15 +194,17 @@ async function boardMenu() {
       windowBox(0, 0, W, H);
       text(`${heroName(m)}　${L('技能點數', 'Skill points')} ${m.sp}`, 10, 7, '#f8e070');
       const cw = 82;
+      if (paths.length > 3) { if (left > 0) text('◀', 2, 25, '#f8e070'); if (left + 3 < paths.length) text('▶', W - 10, 25, '#f8e070'); }
       paths.forEach((p, pi) => {
-        const x = 6 + pi * cw;
-        text(nm(p), x + cw / 2 - 2, 25, '#a8c8f8', { align: 'center' });
+        if (pi < left || pi > left + 2) return;
+        const x = 6 + (pi - left) * cw, lock = locked(pi);
+        text(lock ? '？？？' : nm(p), x + cw / 2 - 2, 25, lock ? '#787888' : p.need ? '#f8c878' : '#a8c8f8', { align: 'center' });
         p.nodes.forEach(([cost, eff], i) => {
           const y = 42 + i * 22, open = nodeOpen(m, pi, i), ready = canOpen(pi, i);
           ctx.fillStyle = open ? '#305830' : ready ? '#283058' : '#181820';
           ctx.fillRect(x, y, cw - 6, 19);
           ctx.strokeStyle = pi === col && i === row ? '#f8d050' : open ? '#78c878' : '#585868'; ctx.strokeRect(x + 0.5, y + 0.5, cw - 7, 18);
-          const lbl = nodeLabel(eff);
+          const lbl = lock ? '？？？' : nodeLabel(eff);
           text(lbl, x + 4, y + 3, open ? '#c8f8c8' : ready ? '#f8f8f8' : '#787888');
           if (!open) text(String(cost), x + cw - 10, y + 3, m.sp >= cost && ready ? '#f8e070' : '#787888', { align: 'right' });
           if (i < 5) { ctx.fillStyle = open ? '#78c878' : '#484858'; ctx.fillRect(x + cw / 2 - 4, y + 19, 2, 3); }
@@ -192,7 +212,7 @@ async function boardMenu() {
       });
       const eff = paths[col].nodes[row][1];
       windowBox(4, 176, W - 8, 44);
-      text(nodeDesc(eff), 12, 186);
+      text(locked(col) ? L('這條路，要在同伴自己的故事之後才會打開。', "This path opens after the friend's own story.") : nodeDesc(eff), 12, 186);
       text(L('Z 學會　X 返回', 'Z: learn   X: back'), W - 12, 202, '#a0a0b8', { align: 'right' });
     },
   });

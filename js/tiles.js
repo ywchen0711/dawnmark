@@ -293,8 +293,9 @@ const T = {
   fence: { base: 'grass', fence: true, solid: true },
   sign: { base: 'grass', o: [['O', 28, 2]], solid: true },
   pot: { base: 'wood', o: [['B', 13, 0]], solid: true },
-  barrel: { base: 'grass', o: [['O', 33, 1]], solid: true },
-  crate: { base: 'grass', o: [['O', 30, 0]], solid: true },
+  // taller than a tile: drawn standing on the cell, the part above it over people
+  barrel: { under: 'grass', px: ['O', 528, 5, 16, 23], solid: true },
+  crate: { under: 'grass', px: ['O', 480, 3, 16, 28], solid: true },
   ctr: { base: 'plaza', o: [['O', 30, 0]], solid: true, counter: true },
   ctrg: { base: 'grass', o: [['O', 30, 0]], solid: true, counter: true },
   ctrw: { base: 'wood', o: [['I', 11, 8]], solid: true, counter: true },
@@ -333,7 +334,8 @@ export const isWater = (k) => !!(T[k] && T[k].water);
 // 'u' walkable and drawn above people (roofs, tree tops), 'U' solid and drawn above people.
 export const STAMPS = {
   house: { s: ['O', 6, 0, 5, 5], rows: ['UUUUU', 'U###U', '#####', '#####', '##.##'], door: [2, 4] },
-  house2: { s: ['O', 11, 0, 5, 5], rows: ['UUUUU', 'U###U', '#####', '#####', '##.##'], door: [2, 4] },
+  // the chimney roof, on the same walls and door as the plain house
+  house2: { s: ['O', 11, 0, 5, 5], rowsrc: { 3: [6, 3], 4: [6, 4] }, rows: ['UUUUU', 'U###U', '#####', '#####', '##.##'], door: [2, 4] },
   hut: { s: ['O', 13, 6, 2, 2], rows: ['UU', '##'] },
   tree: { s: ['O', 5, 16, 2, 2], rows: ['uu', '##'] },
   ttree: { s: ['B', 16, 12, 2, 2], rows: ['uu', '##'] },
@@ -451,6 +453,12 @@ export function drawTile(g, k, x, y, nb, f) {
   const d = T[k];
   if (!d) throw new Error('tile ' + k);
   if (d.base) drawTile(g, d.base, x, y, nb, f);
+  if (d.under) {
+    // stand on whatever floor is next to it
+    let u = d.under;
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, 1], [0, -1]]) { const o = nb(dx, dy); if (T[o] && !T[o].solid && !T[o].water && !T[o].under) { u = o; break; } }
+    drawTile(g, u, x, y, (dx, dy) => (dx || dy ? nb(dx, dy) : u), f);
+  }
   if (d.black) { g.fillStyle = '#000'; g.fillRect(0, 0, 16, 16); return; }
   if (d.fill) { const [sh, c, r] = pick(d.fill, x, y); blit(g, sh, c, r); }
   if (d.ring) ringEdges(g, d.sheet || 'O', (dx, dy) => (T[nb(dx, dy)] || {}).group === d.ring);
@@ -506,6 +514,13 @@ export function renderMap(map) {
     drawTile(t.x, k, x, y, (dx, dy) => kindAt(x + dx, y + dy), 0);
     c.x.drawImage(t, x * 16, y * 16);
   }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const d = T[kindAt(x, y)];
+    if (!d || !d.px) continue;
+    const [sh, sx, sy, pw, ph] = d.px, low = Math.min(ph, 16), top = ph - low;
+    c.x.drawImage(SH[sh], sx, sy + top, pw, low, x * 16 + (16 - pw) / 2, y * 16 + 16 - low, pw, low);
+    if (top) up.x.drawImage(SH[sh], sx, sy, pw, top, x * 16 + (16 - pw) / 2, y * 16 - top, pw, top);
+  }
   // stamps: sorted top to bottom so nearer ones overlap
   const st = [...(map.stamps || [])].sort((a, b) => a.y - b.y);
   for (const s of st) {
@@ -515,7 +530,8 @@ export function renderMap(map) {
     for (let yy = 0; yy < shh; yy++) for (let xx = 0; xx < sw; xx++) {
       const ch = S.rows[yy][xx];
       const dst = ch === 'u' || ch === 'U' ? up : c;
-      dst.x.drawImage(SH[s.sheet || sh], (c0 + xx) * 16, (r0 + yy) * 16, 16, 16, (s.x + xx) * 16, (s.y + yy) * 16, 16, 16);
+      const [sc, sr] = (S.rowsrc && S.rowsrc[yy]) || [c0, r0 + yy];
+      dst.x.drawImage(SH[s.sheet || sh], (sc + xx) * 16, sr * 16, 16, 16, (s.x + xx) * 16, (s.y + yy) * 16, 16, 16);
     }
   }
   return { frames: [c], upper: up };

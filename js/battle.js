@@ -8,7 +8,7 @@ import { sfx, playMusic } from './audio.js';
 import { S, stats, heroName, spellsOf, skillsOf, passive, mpCost, gainExp, addItem, MAXPARTY } from './party.js';
 import { HEROES, SKILLS, ARTS, MON, MACTS, ITEMS, EQUIP, ZONES, BG, nm, ds } from './data.js';
 import { monArt, flash, sprite, loadBg, bgArt } from './sprites.js';
-import { menu, custom, UI, statusTags, tagPages, drawTags } from './ui.js';
+import { menu, custom, UI, statusTags, tagPages, drawTags, fit, wrap } from './ui.js';
 import { L, isEn } from './i18n.js';
 
 export const settings = { speed: 3 };
@@ -213,7 +213,7 @@ async function chooseAction(h) {
     if (c.id === 'spell' || c.id === 'skill') {
       const ids = c.id === 'spell' ? battleSpells(h) : skillsOf(h);
       let desc = '';
-      const k = await menu(ids.map((id) => ({ label: nm(SKILLS[id]), right: mpCost(h, id), disabled: mpCost(h, id) > h.mp || (SKILLS[id].fieldOnly) })), { x: 2, y: 50, w: 252, cols: 2, maxRows: 5, title: `${heroName(h)}  MP ${h.mp}`, onMove: (i) => { desc = ds(SKILLS[ids[i]]); }, drawExtra: () => { windowBox(2, 182, 252, 40); text(desc, 10, 194); } });
+      const k = await menu(ids.map((id) => ({ label: nm(SKILLS[id]), right: mpCost(h, id), disabled: mpCost(h, id) > h.mp || (SKILLS[id].fieldOnly) })), { x: 2, y: 50, w: 252, cols: 2, maxRows: 5, title: `${heroName(h)}  MP ${h.mp}`, onMove: (i) => { desc = ds(SKILLS[ids[i]]); }, drawExtra: () => descLines(desc) });
       if (k < 0) continue;
       const id = ids[k], sk = SKILLS[id];
       const t = await pickTarget(sk.tgt, sk.dead);
@@ -221,7 +221,7 @@ async function chooseAction(h) {
       return { type: 'skill', id, target: t };
     }
     if (c.id === 'art') {
-      const k = await menu(arts.map((id) => ({ label: nm(ARTS[id]) })), { x: 2, y: 60, w: 252, title: L('連攜技', 'Link Arts'), drawExtra: (i) => { windowBox(2, 182, 252, 40); text(ds(ARTS[arts[i]]), 10, 194); } });
+      const k = await menu(arts.map((id) => ({ label: nm(ARTS[id]) })), { x: 2, y: 60, w: 252, title: L('連攜技', 'Link Arts'), drawExtra: (i) => descLines(ds(ARTS[arts[i]])) });
       if (k < 0) continue;
       const a = ARTS[arts[k]];
       const t = await pickTarget(a.tgt);
@@ -231,7 +231,7 @@ async function chooseAction(h) {
     if (c.id === 'item') {
       const ids = Object.keys(S.inv).filter((id) => ITEMS[id].use && !['zoom', 'repel', 'seed', 'book', 'tmap', 'whistle'].includes(ITEMS[id].use) && !ITEMS[id].key);
       if (!ids.length) { sfx('buzz'); continue; }
-      const k = await menu(ids.map((id) => ({ label: nm(ITEMS[id]), right: S.inv[id] })), { x: 2, y: 50, w: 252, cols: 2, maxRows: 5, title: L('道具', 'Items'), drawExtra: (i) => { windowBox(2, 182, 252, 40); text(ds(ITEMS[ids[i]]), 10, 194); } });
+      const k = await menu(ids.map((id) => ({ label: nm(ITEMS[id]), right: S.inv[id] })), { x: 2, y: 50, w: 252, cols: 2, maxRows: 5, title: L('道具', 'Items'), drawExtra: (i) => descLines(ds(ITEMS[ids[i]])) });
       if (k < 0) continue;
       const it = ITEMS[ids[k]];
       const t = await pickTarget(['dmg', 'statusitem'].includes(it.use) ? 'foes' : ['healall', 'fullall'].includes(it.use) ? 'allies' : it.use === 'smoke' ? 'self' : 'ally', it.use === 'revive');
@@ -248,6 +248,8 @@ async function chooseAction(h) {
     }
   }
 }
+// the explanation under a battle list: one or two lines, wrapped to the window
+function descLines(s) { windowBox(2, 182, 252, 40); const ls = wrap(s || '', 236).slice(0, 2); ls.forEach((l, i) => text(l, 10, ls.length > 1 ? 188 + i * 14 : 194)); }
 const battleSpells = (h) => spellsOf(h).filter((id) => !SKILLS[id].fieldOnly);
 export const TACTICS = () => [['orders', L('聽從命令', 'Follow Orders')], ['mercy', L('全力進攻', 'Show No Mercy')], ['wisely', L('見機行事', 'Fight Wisely')], ['heal', L('專心治療', 'Focus on Healing')], ['nomp', L('不用魔力', "Don't Use MP")]];
 export async function tacticsMenu() {
@@ -1043,7 +1045,7 @@ function drawFoeList() {
   const rows = Object.entries(g);
   if (!B.cmdOpen) return;
   windowBox(128, 152, 126, 70);
-  rows.slice(0, 4).forEach(([id, n], i) => { text(nm(MON[id]), 136, 160 + i * 15); text(`${n}`, 246, 160 + i * 15, '#f8f8f8', { align: 'right' }); });
+  rows.slice(0, 4).forEach(([id, n], i) => { text(fit(nm(MON[id]), 104 - textW(`${n}`)), 136, 160 + i * 15); text(`${n}`, 246, 160 + i * 15, '#f8f8f8', { align: 'right' }); });
 }
 function drawParty() {
   const n = S.members.length;
@@ -1060,7 +1062,7 @@ function drawParty() {
     // statuses and buffs take turns with the name, about a second each
     const tags = dead ? [] : statusTags(h.st, h.b && h.b.buffs), pages = tags.length ? tagPages(tags, 49) : [];
     const ph = Math.floor(B.t / 60) % (pages.length + 1);
-    if (ph === 0) text(isEn() ? nmn.slice(0, 7) : nmn, x + 7, y + 4, col); else drawTags(pages[ph - 1], x + 7, y + 4, 49);
+    if (ph === 0) text(fit(nmn, 49), x + 7, y + 4, col); else drawTags(pages[ph - 1], x + 7, y + 4, 49);
     text('H', x + 7, y + 17, '#a8b0c8'); text(String(h.hp), x + 56, y + 17, col, { align: 'right' });
     text('M', x + 7, y + 29, '#a8b0c8'); text(String(h.mp), x + 56, y + 29, col, { align: 'right' });
     void n;

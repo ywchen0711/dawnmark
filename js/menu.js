@@ -4,7 +4,7 @@ import { ctx, W, H, text, textW, windowBox, HAND } from './gfx.js';
 import { sprite, face } from './sprites.js';
 import { ITEMS, EQUIP, SKILLS, HEROES, BOARDS, PASSIVES, expFor, nm, ds } from './data.js';
 import { S, stats, spellsOf, skillsOf, mpCost, addItem, count, save, heroName, spriteOf, nodeOpen, MAXPARTY } from './party.js';
-import { menu, panel, notice, ask, pressKey, custom, statusTags, tagPages, drawTags } from './ui.js';
+import { menu, panel, notice, ask, pressKey, custom, statusTags, tagPages, drawTags, fit, wrap } from './ui.js';
 import { input } from './input.js';
 import { sfx, vol, setVolumes, music, setMusic } from './audio.js';
 import { settings as bset, tacticsMenu } from './battle.js';
@@ -74,7 +74,7 @@ async function itemMenu() {
     const list = Object.keys(S.inv).sort((a, b) => (ITEMS[a].key ? 2 : ITEMS[a].equip ? 1 : 0) - (ITEMS[b].key ? 2 : ITEMS[b].equip ? 1 : 0));
     if (!list.length) { await notice(L('什麼都沒有。', 'Nothing here.')); return null; }
     let desc = '';
-    const close = panel(() => { windowBox(4, 186, W - 8, 34); text(desc, 12, 196); });
+    const close = panel(() => { windowBox(4, 182, W - 8, 38); wrap(desc, W - 24).slice(0, 2).forEach((l, i) => text(l, 12, 188 + i * 14)); });
     const r = await menu(list.map((id) => ({ label: nm(ITEMS[id]), right: ITEMS[id].key ? '' : S.inv[id], disabled: !ITEMS[id].use || ITEMS[id].battle, color: ITEMS[id].key ? '#f8e070' : undefined })), { x: 4, y: 4, w: W - 8, cols: 2, maxRows: 10, cancel: true, onMove: (i) => { const it = ITEMS[list[i]]; desc = ds(it) || (it.equip ? equipDesc(it) : ''); } });
     close();
     if (r < 0) return null;
@@ -201,22 +201,25 @@ async function boardMenu() {
       paths.forEach((p, pi) => {
         if (pi < left || pi > left + 2) return;
         const x = 6 + (pi - left) * cw, lock = locked(pi);
-        text(lock ? '？？？' : nm(p), x + cw / 2 - 2, 25, lock ? '#787888' : p.need ? '#f8c878' : '#a8c8f8', { align: 'center' });
+        text(lock ? '？？？' : fit(nm(p), cw - 4), x + cw / 2 - 2, 25, lock ? '#787888' : p.need ? '#f8c878' : '#a8c8f8', { align: 'center' });
         p.nodes.forEach(([cost, eff], i) => {
           const y = 42 + i * 22, open = nodeOpen(m, pi, i), ready = canOpen(pi, i);
           ctx.fillStyle = open ? '#305830' : ready ? '#283058' : '#181820';
           ctx.fillRect(x, y, cw - 6, 19);
           ctx.strokeStyle = pi === col && i === row ? '#f8d050' : open ? '#78c878' : '#585868'; ctx.strokeRect(x + 0.5, y + 0.5, cw - 7, 18);
-          const lbl = lock ? '？？？' : nodeLabel(eff);
+          // the name is shortened to leave room for the cost on its right (the full name is in the window below)
+          const lbl = fit(lock ? '？？？' : nodeLabel(eff), open ? cw - 12 : cw - 18 - textW(String(cost)));
           text(lbl, x + 4, y + 3, open ? '#c8f8c8' : ready ? '#f8f8f8' : '#787888');
           if (!open) text(String(cost), x + cw - 10, y + 3, m.sp >= cost && ready ? '#f8e070' : '#787888', { align: 'right' });
           if (i < 5) { ctx.fillStyle = open ? '#78c878' : '#484858'; ctx.fillRect(x + cw / 2 - 4, y + 19, 2, 3); }
         });
       });
       const eff = paths[col].nodes[row][1];
-      windowBox(4, 176, W - 8, 44);
-      text(locked(col) ? L('這條路，要在同伴自己的故事之後才會打開。', "This path opens after the friend's own story.") : nodeDesc(eff), 12, 186);
-      text(L('Z 學會　X 返回', 'Z: learn   X: back'), W - 12, 202, '#a0a0b8', { align: 'right' });
+      // the node's full name and what it does, wrapped to two lines, above the key hint
+      windowBox(4, 172, W - 8, 50);
+      const dsc = locked(col) ? L('這條路，要在同伴自己的故事之後才會打開。', "This path opens after the friend's own story.") : eff.skill || eff.spell ? `${nodeLabel(eff)}${L('：', ': ')}${nodeDesc(eff)}` : nodeDesc(eff);
+      wrap(dsc, W - 24).slice(0, 2).forEach((l, i) => text(l, 12, 177 + i * 13));
+      text(L('Z 學會　X 返回', 'Z: learn   X: back'), W - 12, 203, '#a0a0b8', { align: 'right' });
     },
   });
 }
@@ -227,7 +230,7 @@ async function equipMenu() {
   const SLOT = [['weapon', L('武器', 'Weapon')], ['armor', L('鎧甲', 'Armour')], ['shield', L('盾', 'Shield')], ['head', L('頭', 'Head')], ['acc', L('飾品', 'Accessory')]];
   for (;;) {
     const st = stats(m);
-    const close = panel(() => { windowBox(4, 120, W - 8, 40); text(L(`攻擊 ${st.atk}　防禦 ${st.def}　速度 ${st.agi}`, `ATK ${st.atk}  DEF ${st.def}  AGI ${st.agi}`), 12, 128); text(L(`魔力 ${st.mag}　回復 ${st.heal}`, `MAG ${st.mag}  HEAL ${st.heal}`), 12, 144, '#c0d0f8'); });
+    const close = panel(() => { windowBox(4, 118, W - 8, 44); text(L(`攻擊 ${st.atk}　防禦 ${st.def}　速度 ${st.agi}`, `ATK ${st.atk}  DEF ${st.def}  AGI ${st.agi}`), 12, 125); text(L(`魔力 ${st.mag}　回復 ${st.heal}`, `MAG ${st.mag}  HEAL ${st.heal}`), 12, 141, '#c0d0f8'); });
     const r = await menu(SLOT.map(([k, n]) => ({ label: n, right: m.equip[k] ? nm(EQUIP[m.equip[k]]) : '──', disabled: k === 'shield' && !HEROES[m.id].shield })), { x: 4, y: 4, w: 248, title: L(`${heroName(m)}的裝備`, `${heroName(m)}'s gear`) });
     close();
     if (r < 0) return;
@@ -244,7 +247,7 @@ async function equipMenu() {
       rows.forEach(([k, x, y], i) => { const X = 12 + (i % 2) * 120, Y = 166 + Math.floor(i / 2) * 16; const lbl = `${L(STATN[k][0], STATN[k][1])} ${x} → `; text(lbl, X, Y); text(String(y), X + textW(lbl), Y, y > x ? '#78f878' : y < x ? '#f87878' : '#f8f8f8'); });
     });
     const labels = [{ label: L('（卸下）', '(Remove)') }, ...opts.map((id) => ({ label: nm(EQUIP[id]), right: S.inv[id] }))];
-    const k = await menu(labels, { x: 60, y: 24, w: 180, title: SLOT[r][1], maxRows: 7, onMove: (i) => { preview = i === 0 ? null : opts[i - 1]; } });
+    const k = await menu(labels, { x: 60, y: 20, w: 180, title: SLOT[r][1], maxRows: 7, onMove: (i) => { preview = i === 0 ? null : opts[i - 1]; } });
     close2();
     if (k < 0) continue;
     if (k === 0 && slot === 'weapon') { sfx('buzz'); continue; }
@@ -270,10 +273,22 @@ async function statusMenu() {
     text(`${L('經驗', 'EXP')} ${m.exp}`, 68, 44); text(`${L('下一級', 'Next')} ${Math.max(0, expFor(m.lv + 1) - m.exp)}`, 160, 44);
     const rows = [[`${L('體力', 'HP')} ${m.hp}/${st.maxhp}`, `${L('魔力', 'MP')} ${m.mp}/${st.maxmp}`], [`${L('攻擊', 'ATK')} ${st.atk}`, `${L('防禦', 'DEF')} ${st.def}`], [`${L('力量', 'STR')} ${st.str}`, `${L('速度', 'AGI')} ${st.agi}`], [`${L('魔力', 'MAG')} ${st.mag}`, `${L('回復', 'HEAL')} ${st.heal}`]];
     rows.forEach(([a, b], i) => { text(a, 14, 66 + i * 15); text(b, 130, 66 + i * 15); });
-    const eq = ['weapon', 'armor', 'shield', 'head', 'acc'].map((k) => (m.equip[k] ? nm(EQUIP[m.equip[k]]) : '──'));
-    eq.forEach((e, i) => text(e, 14 + (i % 2) * 120, 130 + Math.floor(i / 2) * 14, '#c0d0f8'));
-    const sp = [...spellsOf(m), ...skillsOf(m)].map((s) => nm(SKILLS[s])), cols = isEn() ? 3 : 4, cw = isEn() ? 78 : 58;
-    for (let i = 0; i < Math.min(sp.length, 8); i++) text(sp[i], 14 + (i % cols) * cw, 176 + Math.floor(i / cols) * 14, '#a8e8b8');
+    // the gear flows along the line with a clear gap between pieces, wrapping when the names are long
+    let ex = 14, ey = 130;
+    for (const k of ['weapon', 'armor', 'shield', 'head', 'acc']) {
+      if (!m.equip[k] && k === 'shield' && !H0.shield) continue;
+      const s = fit(m.equip[k] ? nm(EQUIP[m.equip[k]]) : '──', W - 28), sw = textW(s);
+      if (ex > 14 && ex + sw > W - 14) { ex = 14; ey += 13; }
+      text(s, ex, ey, '#c0d0f8'); ex += sw + 14;
+    }
+    // spells and skills in columns as wide as the longest needs; what does not fit is counted
+    const sp = [...spellsOf(m), ...skillsOf(m)].map((s) => nm(SKILLS[s]));
+    if (sp.length) {
+      const widest = Math.max(...sp.map((s) => textW(s))), cols = Math.max(2, Math.min(4, Math.floor((W - 28) / (widest + 10)))), cw = Math.floor((W - 28) / cols);
+      const y0 = ey + 18, rows = Math.max(1, Math.floor((200 - y0) / 14) + 1), cap = rows * cols, shown = sp.length > cap ? cap - 1 : sp.length;
+      for (let i = 0; i < shown; i++) text(fit(sp[i], cw - 8), 14 + (i % cols) * cw, y0 + Math.floor(i / cols) * 14, '#a8e8b8');
+      if (shown < sp.length) text(`+${sp.length - shown}`, 14 + (shown % cols) * cw, y0 + Math.floor(shown / cols) * 14, '#a0a8c0');
+    }
   });
   await pressKey();
   close();
@@ -338,9 +353,9 @@ export async function shop(stock, who = '商人') {
 async function buy(stock, who) {
   let info = '';
   for (;;) {
-    const close = panel(() => { windowBox(4, 162, W - 8, 58); if (info) info.split('\n').forEach((l, i) => text(l, 12, 168 + i * 15)); });
+    const close = panel(() => { windowBox(4, 162, W - 8, 58); if (info) info.split('\n').flatMap((l) => wrap(l, W - 24)).slice(0, 3).forEach((l, i) => text(l, 12, 168 + i * 15)); });
     const r = await menu(stock.map((id) => ({ label: nm(ITEMS[id]), right: ITEMS[id].price, disabled: ITEMS[id].price > S.gold })), {
-      x: 4, y: 30, w: 170, maxRows: 7, title: L('要買什麼？', 'Buy what?'),
+      x: 4, y: 30, w: 170, maxRows: 6, title: L('要買什麼？', 'Buy what?'),
       onMove: (i) => {
         const it = ITEMS[stock[i]];
         if (!it.equip) { info = `${ds(it)}\n${L('持有', 'Owned')} ${count(stock[i])}`; return; }
@@ -372,7 +387,7 @@ async function sell() {
   for (;;) {
     const list = Object.keys(S.inv).filter((id) => !ITEMS[id].key && ITEMS[id].price > 0);
     if (!list.length) { await notice(L('沒有可以賣的東西。', 'Nothing to sell.')); return; }
-    const r = await menu(list.map((id) => ({ label: `${nm(ITEMS[id])}×${S.inv[id]}`, right: Math.floor(ITEMS[id].price / 2) })), { x: 4, y: 30, w: 220, maxRows: 9, title: L('要賣什麼？', 'Sell what?') });
+    const r = await menu(list.map((id) => ({ label: `${nm(ITEMS[id])} ×${S.inv[id]}`, right: Math.floor(ITEMS[id].price / 2) })), { x: 4, y: 30, w: 220, maxRows: 9, title: L('要賣什麼？', 'Sell what?') });
     if (r < 0) return;
     addItem(list[r], -1); S.gold += Math.floor(ITEMS[list[r]].price / 2); sfx('ok');
   }

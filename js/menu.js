@@ -4,7 +4,7 @@ import { ctx, W, H, text, textW, windowBox, HAND } from './gfx.js';
 import { sprite, face } from './sprites.js';
 import { ITEMS, EQUIP, SKILLS, HEROES, BOARDS, PASSIVES, expFor, nm, ds } from './data.js';
 import { S, stats, spellsOf, skillsOf, mpCost, addItem, count, save, heroName, spriteOf, nodeOpen, MAXPARTY } from './party.js';
-import { menu, panel, notice, ask, pressKey, custom } from './ui.js';
+import { menu, panel, notice, ask, pressKey, custom, statusTags, tagPages, drawTags } from './ui.js';
 import { input } from './input.js';
 import { sfx, vol, setVolumes, music, setMusic } from './audio.js';
 import { settings as bset, tacticsMenu } from './battle.js';
@@ -23,6 +23,9 @@ function drawParty(x, y, w) {
     ctx.drawImage(face(HEROES[m.id].face), 0, 0, 48, 48, x + 7, yy + 1, 36, 36);
     text(heroName(m), x + 48, yy, '#f8f8f8');
     text('Lv ' + m.lv, x + w - 8, yy, '#f8e070', { align: 'right' });
+    // lingering statuses (poison...) between the name and the level, a page a second
+    const tags = m.hp > 0 ? statusTags(m.st) : [], nx = x + 48 + textW(heroName(m)) + 6;
+    if (tags.length) { const pages = tagPages(tags, x + w - 14 - textW('Lv ' + m.lv) - nx); drawTags(pages[Math.floor(performance.now() / 1000) % pages.length], nx, yy, 999); }
     text(`H ${m.hp}/${s.maxhp}`, x + 48, yy + 13, m.hp <= 0 ? '#f86060' : m.hp < s.maxhp / 4 ? '#f8c048' : '#f8f8f8');
     text(`M ${m.mp}/${s.maxmp}`, x + 48, yy + 26, '#c0d0f8');
     if (m.sp > 0 && (S.time >> 5) % 2) text('SP', x + w - 8, yy + 26, '#78f8a0', { align: 'right' });
@@ -261,6 +264,8 @@ async function statusMenu() {
     ctx.drawImage(face(H0.face), 12, 12);
     text(`${heroName(m)}`, 68, 12, '#f8e070');
     text(L(H0.job[0], H0.job[1]), 68, 28);
+    const tags = m.hp > 0 ? statusTags(m.st) : [];
+    if (tags.length) drawTags(tags, 68 + textW(L(H0.job[0], H0.job[1])) + 10, 28, W - 22 - 68 - textW(L(H0.job[0], H0.job[1])));
     text(`Lv ${m.lv}`, 200, 12);
     text(`${L('經驗', 'EXP')} ${m.exp}`, 68, 44); text(`${L('下一級', 'Next')} ${Math.max(0, expFor(m.lv + 1) - m.exp)}`, 160, 44);
     const rows = [[`${L('體力', 'HP')} ${m.hp}/${st.maxhp}`, `${L('魔力', 'MP')} ${m.mp}/${st.maxmp}`], [`${L('攻擊', 'ATK')} ${st.atk}`, `${L('防禦', 'DEF')} ${st.def}`], [`${L('力量', 'STR')} ${st.str}`, `${L('速度', 'AGI')} ${st.agi}`], [`${L('魔力', 'MAG')} ${st.mag}`, `${L('回復', 'HEAL')} ${st.heal}`]];

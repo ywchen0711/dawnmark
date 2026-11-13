@@ -3,8 +3,41 @@
 import { ctx, W, H, text, textW, windowBox, HAND, HAND_D } from './gfx.js';
 import { input } from './input.js';
 import { sfx } from './audio.js';
-import { speaker, FACES } from './i18n.js';
+import { speaker, FACES, L } from './i18n.js';
 import { face } from './sprites.js';
+
+// short coloured status tags so the windows show who is poisoned, asleep, buffed... at a glance
+const STTAG = {
+  poison: ['毒', 'PSN', '#c070f0'], sleep: ['眠', 'SLP', '#a0c8f8'], numb: ['麻', 'PAR', '#f8e070'], confuse: ['亂', 'CNF', '#f890c0'],
+  blind: ['盲', 'BLD', '#a8a8a8'], hush: ['默', 'MUT', '#f8a0d0'], doom: ['死', 'DM', '#f84848'],
+  atkup: ['攻↑', 'ATK↑', '#f8a060'], defup: ['防↑', 'DEF↑', '#f8d870'], agiup: ['速↑', 'SPD↑', '#70f0f8'], magup: ['魔↑', 'MAG↑', '#d0a0f8'],
+  atkdown: ['攻↓', 'ATK↓', '#9098d0'], defdown: ['防↓', 'DEF↓', '#9098d0'], agidown: ['速↓', 'SPD↓', '#9098d0'],
+  mwall: ['魔盾', 'SHL', '#a0e0f8'], reflect: ['反射', 'RFL', '#e0e8ff'], regen: ['再生', 'RGN', '#80f8a0'], reraise: ['復活', 'LIF', '#f8f0a0'],
+};
+// st: ailments, buffs: battle buffs (either may be missing)
+export function statusTags(st, buffs) {
+  const out = [];
+  for (const o of [st, buffs]) for (const k of Object.keys(o || {})) if (o[k] && STTAG[k]) out.push({ s: L(STTAG[k][0], STTAG[k][1]) + (k === 'doom' ? o[k] : ''), col: STTAG[k][2] });
+  return out;
+}
+// split tags into pages that each fit in maxW pixels
+export function tagPages(tags, maxW) {
+  const pages = []; let cur = [], w = 0;
+  for (const t of tags) { const tw = textW(t.s); if (cur.length && w + tw > maxW) { pages.push(cur); cur = []; w = 0; } cur.push(t); w += tw + 3; }
+  if (cur.length) pages.push(cur);
+  return pages;
+}
+// draw the tags in a row; whatever does not fit becomes "+N"
+export function drawTags(tags, x, y, maxW) {
+  const ws = tags.map((t) => textW(t.s));
+  const total = (k) => ws.slice(0, k).reduce((a, b) => a + b + 3, 0) + (k < tags.length ? textW('+' + (tags.length - k)) : -3);
+  let n = tags.length;
+  while (n > 0 && total(n) > maxW) n--;
+  let cx = x;
+  for (let i = 0; i < n; i++) { text(tags[i].s, cx, y, tags[i].col); cx += ws[i] + 3; }
+  if (n < tags.length) text('+' + (tags.length - n), cx, y, '#c0c8f0');
+  return total(n);
+}
 
 const stack = [];
 export const UI = {

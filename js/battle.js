@@ -8,11 +8,11 @@ import { sfx, playMusic } from './audio.js';
 import { S, stats, heroName, spellsOf, skillsOf, passive, mpCost, gainExp, addItem, MAXPARTY } from './party.js';
 import { HEROES, SKILLS, ARTS, MON, MACTS, ITEMS, EQUIP, ZONES, BG, nm, ds } from './data.js';
 import { monArt, flash, sprite, loadBg, bgArt } from './sprites.js';
-import { menu, custom, UI } from './ui.js';
+import { menu, custom, UI, statusTags, tagPages, drawTags } from './ui.js';
 import { L, isEn } from './i18n.js';
 
 export const settings = { speed: 3 };
-export const _B = { auto: false, log: [] };
+export const _B = { auto: false, log: [], get B() { return B; } };
 const MON_ATK_K = 1.5;
 const rnd = (a, b) => a + Math.random() * (b - a);
 const chance = (p) => Math.random() < p;
@@ -295,6 +295,9 @@ function pickTarget(tgt, dead = false) {
         windowBox(2, 184, 252, 38);
         const n = tgt === 'group' ? L(`${nm(f.def)}（${list.filter((g) => g.id === f.id).length}）`, `${nm(f.def)} (${list.filter((g) => g.id === f.id).length})`) : foeName(f);
         text(n, 14, 196);
+        // the monster's ailments and buffs
+        const tags = tgt === 'group' ? [] : statusTags(f.st, f.buffs);
+        if (tags.length) drawTags(tags, 14 + textW(n) + 8, 196, 240 - textW(n) - 8);
       },
     });
   }
@@ -1054,17 +1057,12 @@ function drawParty() {
     if (h.b && h.b.pepT) { ctx.globalAlpha = 0.35 + Math.sin(B.t / 6) * 0.15; ctx.fillStyle = '#f8a028'; ctx.fillRect(x + 4, y + 4, 54, 38); ctx.globalAlpha = 1; }
     if (fl) { ctx.fillStyle = 'rgba(248,64,64,0.45)'; ctx.fillRect(x + 4, y + 4, 54, 38); }
     const nmn = heroName(h);
-    text(isEn() ? nmn.slice(0, 7) : nmn, x + 7, y + 4, col);
+    // statuses and buffs take turns with the name, about a second each
+    const tags = dead ? [] : statusTags(h.st, h.b && h.b.buffs), pages = tags.length ? tagPages(tags, 49) : [];
+    const ph = Math.floor(B.t / 60) % (pages.length + 1);
+    if (ph === 0) text(isEn() ? nmn.slice(0, 7) : nmn, x + 7, y + 4, col); else drawTags(pages[ph - 1], x + 7, y + 4, 49);
     text('H', x + 7, y + 17, '#a8b0c8'); text(String(h.hp), x + 56, y + 17, col, { align: 'right' });
     text('M', x + 7, y + 29, '#a8b0c8'); text(String(h.mp), x + 56, y + 29, col, { align: 'right' });
-    // status marks
-    const marks = [];
-    if (h.st.poison) marks.push(['#c070f0', 'P']);
-    if (h.st.sleep) marks.push(['#a0c8f8', 'Z']);
-    if (h.st.numb) marks.push(['#f8e070', 'N']);
-    if (h.st.confuse) marks.push(['#f890c0', '?']);
-    if (h.st.doom) marks.push(['#f84848', String(h.st.doom)]);
-    marks.forEach(([c, m], k) => text(m, x + 50 - k * 7, y + 4, c));
     void n;
   });
   for (const e of B.fx) if (e.win !== undefined && e.win >= 0) drawWinFx(e);

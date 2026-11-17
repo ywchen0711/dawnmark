@@ -16,7 +16,7 @@ addEventListener('keydown', (e) => {
   down.add(k); lastDevice = 'key';
 });
 addEventListener('keyup', (e) => { const k = MAP[e.code]; if (k) down.delete(k); });
-addEventListener('blur', () => { down.clear(); touch.clear(); });
+addEventListener('blur', () => { down.clear(); touch.clear(); }); addEventListener('pagehide', () => { down.clear(); touch.clear(); });
 
 export const input = {
   held: (k) => down.has(k) || touch.has(k) || pad.has(k),
@@ -60,9 +60,12 @@ export function setupTouch() {
   if (!el) return;
   const show = () => { document.body.classList.add('touching'); lastDevice = 'touch'; };
   addEventListener('touchstart', show, { passive: true, once: true });
+  // a touch-only screen (phone, iPad, which calls itself a Mac) shows the buttons straight away
+  try { if (navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches) show(); } catch (e) { /* old browser */ }
   const pads = el.querySelectorAll('[data-k]');
   const active = new Map();
-  const update = () => { touch.clear(); for (const k of active.values()) if (k) touch.add(k); };
+  // a quick tap that goes down and up between two frames still counts, as a key press does
+  const update = () => { const before = new Set(touch); touch.clear(); for (const k of active.values()) if (k) { if (!before.has(k)) tap.add(k); touch.add(k); } };
   const hit = (x, y) => { const t = document.elementFromPoint(x, y); return t && t.dataset && t.dataset.k ? t.dataset.k : null; };
   const dpad = el.querySelector('.dpad');
   const dirAt = (x, y) => {
@@ -71,7 +74,12 @@ export function setupTouch() {
     if (Math.hypot(dx, dy) < r.width * 0.1) return null;
     return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
   };
+  // a finger lifted while the page was away (call, lock screen, app switch) must not stay held
+  const reset = () => { active.clear(); update(); };
+  addEventListener('blur', reset); addEventListener('pagehide', reset);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) reset(); });
   const onTouch = (e) => {
+    if (e.type === 'touchstart') for (const id of [...active.keys()]) if (![...e.touches].some((t) => t.identifier === id)) active.delete(id);
     for (const t of e.changedTouches) {
       if (e.type === 'touchend' || e.type === 'touchcancel') { active.delete(t.identifier); continue; }
       const k = hit(t.clientX, t.clientY);

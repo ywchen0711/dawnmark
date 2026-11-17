@@ -80,6 +80,13 @@ It is a static page with no build step. Serve the folder and open `index.html`, 
 python -m http.server
 ```
 
+## iPhone and iPad
+
+- The touch buttons also appear on iPad. Held upright they sit under the picture; held sideways they move to the left and right of it.
+- Sound starts with your first tap. It keeps playing with the ring/silent switch on silent (iOS 17 and later), and comes back after a call, Siri or the lock screen.
+- **Add to Home Screen** from Safari's Share menu to play full screen with its own icon.
+- The game runs at the same speed on 120 Hz ProMotion screens and in Low Power Mode.
+
 ## Credits
 
 The characters and portraits are by Charles Gabriel. The monsters are by Redshrike, JosephSeraph, Blarumyrran, Balmer, Charles Gabriel (Antifarea) and troutsneeze. The tiles are by ArMM1998 and the battle backgrounds by troutsneeze. The music is by Juhani Junkala and Hydrogene. The font is Cubic 11.

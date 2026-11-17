@@ -43,7 +43,7 @@ const SYMC = ['#f84040', '#f8e048', '#c8c8ff', '#f878a8', '#58c8f8', '#78e078'];
 const PAY = { '7': 100, '★': 30, '☾': 15, '♥': 8, '◆': 8, '♣': 8 };
 const REEL = [0, 3, 1, 4, 2, 5, 3, 1, 4, 0, 5, 2, 4, 3, 1, 5];
 def('casino_slots', async (E) => {
-  await E.say('舞者', L('呼呼，來轉一轉吧？按 Z 讓轉輪一個一個停下來喔。', 'Ho ho, care for a spin? Press Z to stop the reels one by one.'));
+  await E.say('舞者', L('呼呼，來轉一轉吧？按 Z（觸控按 A）讓轉輪一個一個停下來喔。', 'Ho ho, care for a spin? Press Z (or A on the screen) to stop the reels one by one.'));
   for (;;) {
     const r = await ask('舞者', L(`要押幾枚？（代幣 ${S.coins || 0}）`, `How many coins? (You have ${S.coins || 0})`), ['1', '5', '10', L('不玩了', 'Done')]);
     if (r < 0 || r === 3) break;
@@ -229,9 +229,9 @@ def('fish', async (E, e) => {
     draw() {
       windowBox(40, 120, 176, 70);
       if (this.phase === 'wait') { text(L('靜靜地等著……', 'Waiting quietly...'), 128, 130, '#f8f8f8', { align: 'center' }); text('～', 128 + Math.sin(this.t / 10) * 6, 150, '#78c8f8', { align: 'center' }); text(L('X：收竿', 'X: stop'), 128, 172, '#a0a0b8', { align: 'center' }); }
-      if (this.phase === 'bite') { text(L('上鉤了！按 Z！', 'A bite! Press Z!'), 128, 130, '#f8e070', { align: 'center' }); text('！', 128, 150, '#f84848', { align: 'center' }); }
+      if (this.phase === 'bite') { text(L('上鉤了！按 Z／A！', 'A bite! Press Z / A!'), 128, 130, '#f8e070', { align: 'center' }); text('！', 128, 150, '#f84848', { align: 'center' }); }
       if (this.phase === 'reel') {
-        text(L('在綠色的地方按 Z！', 'Press Z in the green!'), 128, 128, '#f8f8f8', { align: 'center' });
+        text(L('在綠色的地方按 Z／A！', 'Press Z / A in the green!'), 128, 128, '#f8f8f8', { align: 'center' });
         ctx.fillStyle = '#303048'; ctx.fillRect(52, 152, 152, 12);
         ctx.fillStyle = '#48c860'; ctx.fillRect(52 + this.zs * 152, 152, zone * 152, 12);
         ctx.fillStyle = '#f8f8f8'; ctx.fillRect(52 + this.cur * 152 - 1, 148, 3, 20);

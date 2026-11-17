@@ -2,7 +2,7 @@
 // church when the party falls, and the ending.
 import { ctx, W, H, canvas, text, textW, windowBox, HAND, tint } from './gfx.js';
 import * as gfx from './gfx.js';
-import { input, pollInput, endInput, setupTouch } from './input.js';
+import { input, pollInput, endInput, setupTouch, lastDevice } from './input.js';
 import { initAudio, playMusic, stopMusic, sfx, currentSong } from './audio.js';
 import { UI, uiTick, say, talk, ask, wait, menu, notice } from './ui.js';
 import { S, reset, addMember, removeMember, addItem, fullHeal, save, load, hasSave, stats, member, spriteOf, heroName, has } from './party.js';
@@ -356,7 +356,8 @@ function drawTitle() {
   else { bigText('晨星之印', W / 2, 50, [255, 248, 220], [248, 176, 88], 3); text('THE DAWNMARK', W / 2, 102, '#f8e0b0', { align: 'center' }); }
   if (!title.ready) {
     if ((t >> 5) % 2) text('PRESS START', W / 2, 150, '#ffffff', { align: 'center' });
-    text(L('Z 決定　X 取消　C 選單', 'Z: OK   X: Cancel   C: Menu'), W / 2, 200, '#d0c8e8', { align: 'center' });
+    // on a touch screen the hint names the on-screen buttons
+    text(lastDevice === 'touch' ? L('A 決定　B 取消　「選單」 選單', 'A: OK   B: Cancel   MENU: Menu') : L('Z 決定　X 取消　C 選單', 'Z: OK   X: Cancel   C: Menu'), W / 2, 200, '#d0c8e8', { align: 'center' });
   } else {
     const opts = titleOpts();
     windowBox(60, 130, 136, 64);

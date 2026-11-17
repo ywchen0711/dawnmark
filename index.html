@@ -6,6 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>晨星之印 The Dawnmark</title>
 <meta name="description" content="原創 16 位元風格角色扮演遊戲：手上帶著晨星之印的少年，點亮四盞燈、拯救天織塔。正面視角的回合制戰鬥、燃心連攜技、技能盤。The Dawnmark, an original 16-bit style RPG with front-view turn-based battles, link arts and skill boards.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="晨星之印">
+<meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preload" href="fonts/Cubic_11.woff2" as="font" type="font/woff2" crossorigin>
 <style>
   @font-face { font-family: Cubic11; src: url(fonts/Cubic_11.woff2) format('woff2'); font-display: block; }
@@ -25,11 +32,33 @@
   #musicBtn { position: fixed; top: 8px; right: 8px; z-index: 20; width: 40px; height: 40px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.45); background: rgba(20,24,48,0.6); color: #fff; font: 20px sans-serif; cursor: pointer; display: flex; align-items: center; justify-content: center; }
   #musicBtn.off { opacity: 0.6; }
   #musicBtn.off::after { content: ''; position: absolute; width: 30px; height: 3px; background: #ff6070; transform: rotate(-45deg); border-radius: 2px; }
+/* iPhone / iPad: no bounce, no long-press callout or magnifier, no grey tap flash */
+html, body { overscroll-behavior: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+body { position: fixed; inset: 0; height: 100dvh; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); box-sizing: border-box; }
+#sa { position: fixed; visibility: hidden; pointer-events: none; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+#touch { padding-bottom: env(safe-area-inset-bottom); }
+#musicBtn { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); }
+/* held sideways the pad goes beside the picture: D-pad on the left, buttons on the right */
+body.side #touch { position: fixed; inset: 0; width: auto; max-width: none; height: auto; padding: 0; pointer-events: none; }
+body.side #touch > div { pointer-events: auto; }
+body.side .dpad { left: max(16px, env(safe-area-inset-left)); bottom: max(18px, env(safe-area-inset-bottom)); }
+body.side .btn.a { right: max(18px, env(safe-area-inset-right)); bottom: calc(max(18px, env(safe-area-inset-bottom)) + 64px); }
+body.side .btn.b { right: calc(max(18px, env(safe-area-inset-right)) + 74px); bottom: max(18px, env(safe-area-inset-bottom)); }
+body.side .btn.m { right: calc(max(8px, env(safe-area-inset-right)) + 52px); top: max(10px, env(safe-area-inset-top)); bottom: auto; }
+/* a tablet gets thumb-sized buttons, a little bigger than a phone's */
+@media (min-width: 700px) and (min-height: 600px) and (pointer: coarse) {
+  .dpad { transform: scale(1.2); transform-origin: left bottom; }
+  .btn.a, .btn.b { transform: scale(1.2); }
+  body.side .dpad { left: max(28px, env(safe-area-inset-left)); bottom: max(28px, env(safe-area-inset-bottom)); }
+  body.side .btn.a { right: max(30px, env(safe-area-inset-right)); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 76px); }
+  body.side .btn.b { right: calc(max(30px, env(safe-area-inset-right)) + 92px); bottom: max(28px, env(safe-area-inset-bottom)); }
+}
 </style>
 </head>
 <body>
 <button id="musicBtn" type="button" aria-label="Music on/off" title="Music on/off (M)">♪</button>
 <div id="wrap"><canvas id="screen" width="256" height="224"></canvas></div>
+<div id="sa"></div>
 <div id="touch">
   <div class="dpad"><div class="u" data-k="up"></div><div class="l" data-k="left"></div><div class="c"></div><div class="r" data-k="right"></div><div class="d" data-k="down"></div></div>
   <div class="btn b" data-k="b">B</div>
@@ -37,21 +66,40 @@
   <div class="btn m" data-k="menu" id="menuBtn">選單</div>
 </div>
 <script>
-  // Scale the 256x224 picture by a whole number of real screen pixels, so every game pixel is an
-  // even square even with Windows display scaling at 125% or 150%. The canvas itself is that big.
+  // Whole-number scaling so every game pixel is an even square. On a phone or tablet, when whole pixels
+  // would leave more than a tenth of the room unused, the picture fills it instead (those sharp screens
+  // hide the uneven pixels). Held sideways on a touch screen, the pad goes beside the picture when that
+  // gives a bigger picture than putting it underneath.
   function fit() {
-    const touch = document.body.classList.contains('touching');
-    const dpr = window.devicePixelRatio || 1;
-    const aw = innerWidth * dpr, ah = (innerHeight - (touch ? 180 : 0)) * dpr;
-    const k = Math.max(1, Math.floor(Math.min(aw / 256, ah / 224)));
-    const c = document.getElementById('screen');
+    var body = document.body, touch = body.classList.contains('touching');
+    var dpr = window.devicePixelRatio || 1, coarse = matchMedia('(pointer: coarse)').matches;
+    var cs = getComputedStyle(document.getElementById('sa'));
+    var sa = { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
+    var w = innerWidth - sa.l - sa.r, h = innerHeight - sa.t, side = false;
+    var sc = function (w, h) { return Math.min(w / 256, h / 224); };
+    var SW = innerWidth >= 1000 ? 205 : 170;
+    if (touch) {
+      side = sc(w - 2 * SW, h - sa.b) > sc(w, h - 180 - sa.b);
+      if (side) { w -= 2 * SW; h -= sa.b; } else h -= 180 + sa.b;
+    } else h -= sa.b;
+    if (body.classList.contains('side') !== side) body.classList.toggle('side', side);
+    var full = sc(w, h), k = Math.max(1, Math.floor(full * dpr)), css = k / dpr;
+    if (coarse && dpr >= 2 && css < full * 0.9) css = full;
+    var c = document.getElementById('screen');
     if (c.width !== 256 * k) { c.width = 256 * k; c.height = 224 * k; }
-    c.style.width = (256 * k) / dpr + 'px'; c.style.height = (224 * k) / dpr + 'px';
+    c.style.width = Math.round(256 * css) + 'px'; c.style.height = Math.round(224 * css) + 'px';
   }
   addEventListener('resize', fit);
+  // iPhone / iPad: fit again after a turn or when the Safari bars come and go; no pinch or double-tap zoom
+  addEventListener('orientationchange', function () { setTimeout(fit, 250); });
+  addEventListener('pageshow', fit);
+  if (window.visualViewport) visualViewport.addEventListener('resize', fit);
+  addEventListener('gesturestart', function (e) { e.preventDefault(); });
+  addEventListener('dblclick', function (e) { e.preventDefault(); });
+  document.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
   new MutationObserver(fit).observe(document.body, { attributes: true, attributeFilter: ['class'] });
   fit();
 </script>
-<script type="module" src="js/main.js?v=4"></script>
+<script type="module" src="js/main.js?v=5"></script>
 </body>
 </html>
